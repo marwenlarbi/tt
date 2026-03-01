@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.scrollbar-rounded::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+}
+
+.scrollbar-rounded::-webkit-scrollbar-track {
+  border-radius: 9999px;
+}
+
+/* For Firefox compatibility */
+.scrollbar-rounded {
+  scrollbar-width: thin;
+  scrollbar-color: #6B46C1 #E5E7EB;
+}
+
+.dark .scrollbar-rounded {
+  scrollbar-color: #6B46C1 #1F2937;
+}
+/* Styles pour le chat - Ajouter à la fin du fichier */
+.chat-message {
+  animation: slideInMessage 0.3s ease-out;
+}
+
+@keyframes slideInMessage {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Amélioration des scrollbars pour le chat */
+.chat-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: #8657ff;
+  border-radius: 2px;
+}
