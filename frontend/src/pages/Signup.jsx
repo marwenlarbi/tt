@@ -172,8 +172,8 @@ const Signup = () => {
                     <input
                       type="radio"
                       name="role"
-                      value="owner"
-                      checked={role === 'owner'}
+                      value="user"
+                      checked={role === 'user'}
                       onChange={(e) => setRole(e.target.value)}
                       className="mr-2 w-5 h-5"
                       required

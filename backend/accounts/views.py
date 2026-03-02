@@ -44,7 +44,7 @@ class RegisterView(APIView):
             )
 
         # 4. Validation du rôle
-        valid_roles = ['owner', 'vet']  # Pas d'admin via inscription publique
+        valid_roles = ['user', 'vet']  # Pas d'admin via inscription publique
         if data['role'] not in valid_roles:
             return Response(
                 {"error": f"Rôle invalide. Valeurs autorisées : {', '.join(valid_roles)}"},

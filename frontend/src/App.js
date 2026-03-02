@@ -1,6 +1,19 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AdminRoute } from './routes/AdminRoutes';
 
+
+// Vet Pages
+import VetDashboard from './pages/vet_pages/VetDashboard';
+import VetAppointments from './pages/vet_pages/VetAppointments';
+import VetPatients from './pages/vet_pages/VetPatients';
+import VetConsultations from './pages/vet_pages/VetConsultations';
+import VetPrescriptions from './pages/vet_pages/VetPrescriptions';
+import VetMessages from './pages/vet_pages/VetMessages';
+import VetStats from './pages/vet_pages/VetStats';
+import VetSettings from './pages/vet_pages/VetSettings';
+
+
+
 // Pages
 import AdminDashboard from './pages/admin_pages/AdminDashboard';
 import Adoption from './pages/users_pages/Adoption';
@@ -23,6 +36,7 @@ import AdminOrders from './pages/admin_pages/AdminOrders';
 import AdminSettings from './pages/admin_pages/AdminSettings';
 import AdminReports from './pages/admin_pages/AdminReports';
 import AdminVets from './pages/admin_pages/AdminVets';
+
 
 function App() {
   return (
@@ -102,6 +116,18 @@ function App() {
             </AdminRoute>
           }
         />
+
+        
+
+        {/* Vet routes */}
+        <Route path="/vet/dashboard" element={<VetDashboard />} />
+        <Route path="/vet/appointments" element={<VetAppointments />} />
+        <Route path="/vet/patients" element={<VetPatients />} />
+        <Route path="/vet/consultations" element={<VetConsultations />} />
+        <Route path="/vet/prescriptions" element={<VetPrescriptions />} />
+        <Route path="/vet/messages" element={<VetMessages />} />
+        <Route path="/vet/stats" element={<VetStats />} />
+        <Route path="/vet/settings" element={<VetSettings />} />
 
         {/* Public routes */}
         <Route path="/" element={<Accueil />} />

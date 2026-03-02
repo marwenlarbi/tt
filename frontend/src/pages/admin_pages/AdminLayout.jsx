@@ -116,7 +116,7 @@ const AdminLayout = ({ children }) => {
         
         {/* Footer sidebar */}
         <div className="mt-auto pt-6 border-t border-purple-300 border-opacity-30">
-          <p className="text-purple-200 text-xs">© 2025 Cheebo</p>
+          <p className="text-purple-200 text-xs">© 2026 Cheebo</p>
           <p className="text-purple-200 text-xs">Version 1.0.0</p>
         </div>
       </aside>

@@ -5,7 +5,9 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/auth/', include('accounts.urls')),  # ← c'est cette ligne qui importe accounts.urls
+    path('api/auth/', include('accounts.urls')), 
+    path('/admin_pages/AdminDashboard/', admin.site.urls),
+      # ← c'est cette ligne qui importe accounts.urls
     # Plus tard tu ajouteras :
     # path('api/pets/', include('pets.urls')),
 ]

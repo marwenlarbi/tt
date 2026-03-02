@@ -54,10 +54,10 @@ const Login = () => {
 
       // Redirection selon rôle
       const role = data.user?.role;
-      if (role === "owner") {
+      if (role === "user") {
         navigate("/home");           // ou /profile, /pets, etc.
       } else if (role === "vet") {
-        navigate("/Adoption");   // ou /vet/agenda
+        navigate("/vet/dashboard");   // ou /vet/agenda
       } else if (role === "admin") {
         navigate("/admin_pages/dashboard");
       } else {

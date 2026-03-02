@@ -1,0 +1,9 @@
+export { default as VetLayout } from './vet_pages/VetLayout';
+export { default as VetDashboard } from './vet_pages/VetDashboard';
+export { default as VetAppointments } from './vet_pages/VetAppointments';
+export { default as VetPatients } from './vet_pages/VetPatients';
+export { default as VetConsultations } from './vet_pages/VetConsultations';
+export { default as VetPrescriptions } from './vet_pages/VetPrescriptions';
+export { default as VetMessages } from './vet_pages/VetMessages';
+export { default as VetStats } from './vet_pages/VetStats';
+export { default as VetSettings } from './vet_pages/VetSettings';
