@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import VetLayout from './VetLayout';
-import { Search, Plus, Eye, Edit, Trash2, Download, Stethoscope, PawPrint, Calendar } from "lucide-react";
+import { Search, Plus, Eye, Edit, Trash2, Download, PawPrint, Calendar } from "lucide-react";
 
 const VetConsultations = () => {
   const [consultations, setConsultations] = useState([

@@ -4,18 +4,13 @@ import VetLayout from './VetLayout';
 
 import {
   Calendar,
-  Users,
-  TrendingUp,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
+  
   Stethoscope,
   Bell,
   PawPrint,
   Star,
   FileText,
-  MessageSquare,
-  Activity
+  MessageSquare
 } from "lucide-react";
 
 const VetDashboard = () => {

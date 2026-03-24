@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-import { TrendingUp, TrendingDown, Calendar, Users, Stethoscope, Star, PawPrint } from "lucide-react";
+import { TrendingUp, TrendingDown, Calendar,Stethoscope, Star, PawPrint } from "lucide-react";
 import VetLayout from './VetLayout';
 const VetStats = () => {
   const [period, setPeriod] = useState("month");

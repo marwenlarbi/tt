@@ -1,7 +1,7 @@
   import React, { useState } from "react";
   import VetLayout from './VetLayout';
   import {
-    Search, Plus, Eye, Edit, Trash2, CheckCircle, XCircle, Clock,
+    Search, Plus, Eye, Edit, Trash2, CheckCircle, XCircle,
     Calendar, User, Phone, Mail, PawPrint, Download
   } from "lucide-react";
 
