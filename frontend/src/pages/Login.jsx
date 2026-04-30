@@ -53,15 +53,20 @@ const Login = () => {
       alert("Connexion réussie !");
 
       // Redirection selon rôle
-      const role = data.user?.role;
+      let role = data.user?.role;
+      // Compat héritage: ancien rôle "owner" -> nouveau rôle "user"
+      if (role === "owner") role = "user";
+
       if (role === "user") {
         navigate("/home");           // ou /profile, /pets, etc.
       } else if (role === "vet") {
         navigate("/vet/dashboard");   // ou /vet/agenda
       } else if (role === "admin") {
-        navigate("/admin_pages/dashboard");
+        localStorage.setItem("isAdmin", "true");
+        navigate("/admin/dashboard");
       } else {
-        navigate("/accueil");            // fallback
+        localStorage.removeItem("isAdmin");
+        navigate("/");            // fallback vers l'accueil
       }
 
     } catch (err) {

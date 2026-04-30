@@ -25,7 +25,12 @@ import Profile from './pages/users_pages/Profile';
 import Pets from './pages/users_pages/pets';
 import Vet from './pages/users_pages/vet';
 import ResetPassword from './pages/ResetPassword';
-import Accueil from './pages/Accueil'; // Import de la page d'accueil
+import Accueil from './pages/Accueil';
+import Following from './pages/users_pages/Following';
+import Followers from './pages/users_pages/Followers';
+import Friends from './pages/users_pages/Friends';
+import SavedPosts from './pages/users_pages/SavedPosts';
+import UserProfile from './pages/users_pages/UserProfile';
 
 // Admin Components
 import AdminProduct from './pages/admin_pages/AdminProduct';
@@ -131,6 +136,7 @@ function App() {
 
         {/* Public routes */}
         <Route path="/" element={<Accueil />} />
+        <Route path="/accueil" element={<Accueil />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/reset-password" element={<ResetPassword />} />
@@ -139,7 +145,12 @@ function App() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/pets" element={<Pets />} />
         <Route path="/vet" element={<Vet />} />
+        <Route path="/following" element={<Following />} />
+        <Route path="/followers" element={<Followers />} />
+        <Route path="/friends" element={<Friends />} />
         <Route path="/adoption" element={<Adoption />} />
+        <Route path="/bookmarks" element={<SavedPosts />} />
+        <Route path="/users/:userId" element={<UserProfile />} />
       </Routes>
     </Router>
   );

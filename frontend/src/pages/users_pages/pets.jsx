@@ -1,9 +1,18 @@
-import React, { useState } from 'react';
-import { ShoppingCart, Search, PlusCircle, X} from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ShoppingCart, Search, PlusCircle, X, Plus, Loader2, Pencil, Trash2 } from 'lucide-react';
 import Layout from '../../components/Layout';
+import api, { mediaUrl } from '../../services/api';
 
 const Pets = () => {
+  const navigate = useNavigate();
+  const searchInputRef = useRef(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPetId, setEditingPetId] = useState(null);
+  const [pets, setPets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitError, setSubmitError] = useState(null);
+  const [petSearch, setPetSearch] = useState('');
 
   const [formData, setFormData] = useState({
     image: null,
@@ -32,9 +41,32 @@ const Pets = () => {
     }
   };
 
-  const handleAddAnimal = () => {
-    console.log(formData);
-    setIsModalOpen(false);
+  const loadPets = useCallback(async () => {
+    const token =
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('access') ||
+      localStorage.getItem('token');
+    if (!token) {
+      setLoading(false);
+      setPets([]);
+      return;
+    }
+    try {
+      const { data } = await api.get('/pets/');
+      const list = Array.isArray(data) ? data : data?.results || [];
+      setPets(list);
+    } catch {
+      setPets([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPets();
+  }, [loadPets]);
+
+  const resetForm = () => {
     setFormData({
       image: null,
       uid: '',
@@ -46,7 +78,97 @@ const Pets = () => {
       birthDate: '',
       vaccines: '',
     });
+    setSubmitError(null);
+    setEditingPetId(null);
   };
+
+  const openEditPet = (p) => {
+    setEditingPetId(p.id);
+    setFormData({
+      image: null,
+      uid: p.uid || '',
+      name: p.name || '',
+      address: p.address || '',
+      species: (p.species || '').toLowerCase() === 'chien' ? 'chien' : (p.species || '').toLowerCase() === 'chat' ? 'chat' : (p.species || '').toLowerCase() === 'oiseau' ? 'oiseau' : (p.species || '').toLowerCase() === 'autre' ? 'autre' : '',
+      gender: p.gender === 'Mâle' ? 'male' : p.gender === 'Femelle' ? 'female' : '',
+      sterilized: p.sterilized === 'Oui' ? 'oui' : p.sterilized === 'Non' ? 'non' : '',
+      birthDate: p.birth_date || '',
+      vaccines: p.vaccines && String(p.vaccines).includes('jour') ? 'oui' : p.vaccines ? 'non' : '',
+    });
+    setSubmitError(null);
+    setIsModalOpen(true);
+  };
+
+  const handleDeletePet = async (id) => {
+    if (!window.confirm('Supprimer cet animal ?')) return;
+    try {
+      await api.delete(`/pets/${id}/`);
+      await loadPets();
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Suppression impossible.';
+      alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    }
+  };
+
+  const handleAddAnimal = async () => {
+    setSubmitError(null);
+    const token =
+      localStorage.getItem('access_token') ||
+      localStorage.getItem('access') ||
+      localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+    if (!formData.name?.trim()) {
+      setSubmitError('Le nom de l’animal est obligatoire.');
+      return;
+    }
+    const fd = new FormData();
+    fd.append('name', formData.name.trim());
+    if (formData.uid) fd.append('uid', formData.uid);
+    if (formData.address) fd.append('address', formData.address);
+    if (formData.species) fd.append('species', formData.species);
+    if (formData.gender) fd.append('gender', formData.gender === 'male' ? 'Mâle' : formData.gender === 'female' ? 'Femelle' : formData.gender);
+    if (formData.sterilized) fd.append('sterilized', formData.sterilized === 'oui' ? 'Oui' : 'Non');
+    if (formData.birthDate) fd.append('birth_date', formData.birthDate);
+    if (formData.vaccines) fd.append('vaccines', formData.vaccines === 'oui' ? 'À jour' : 'Non renseigné');
+    if (formData.image instanceof File) fd.append('photo', formData.image);
+    try {
+      if (editingPetId) {
+        await api.patch(`/pets/${editingPetId}/`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      } else {
+        await api.post('/pets/', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      }
+      setIsModalOpen(false);
+      resetForm();
+      await loadPets();
+    } catch (err) {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || 'Impossible d’enregistrer l’animal.';
+      setSubmitError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    }
+  };
+
+  const filteredPets = pets.filter((p) => {
+    const q = petSearch.trim().toLowerCase();
+    if (!q) return true;
+    return `${p.name || ''} ${p.species || ''} ${p.uid || ''}`.toLowerCase().includes(q);
+  });
+
+  const imagePreviewUrl = useMemo(() => {
+    if (formData.image instanceof File) return URL.createObjectURL(formData.image);
+    return null;
+  }, [formData.image]);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    };
+  }, [imagePreviewUrl]);
 
   return (
     <Layout >
@@ -57,15 +179,7 @@ const Pets = () => {
 
         {/* Logo */}
         <div className="mb-8 flex justify-center">
-          <svg
-            className="h-16 w-16 text-primary"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            viewBox="0 0 24 24"
-          >
-            <path d="M12 2v20M2 12h20" />
-          </svg>
+          <Plus className="h-16 w-16 text-primary" strokeWidth={2} />
         </div>
 
         {/* Titre */}
@@ -74,14 +188,18 @@ const Pets = () => {
         </h1>
 
         {/* Boutons d'action */}
-        <div className="flex justify-center space-x-4 mb-8">
+        <div className="flex justify-center space-x-4 mb-8 flex-wrap gap-3">
           <button
+            type="button"
+            onClick={() => navigate('/product')}
             className="px-6 py-3 rounded-xl flex items-center gap-2 bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800 transition-colors duration-300"
           >
             <ShoppingCart className="w-5 h-5" />
             Acheter un identifiant
           </button>
           <button
+            type="button"
+            onClick={() => searchInputRef.current?.focus()}
             className="px-6 py-3 rounded-xl flex items-center gap-2 bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800 transition-colors duration-300"
           >
             <Search className="w-5 h-5" />
@@ -89,15 +207,83 @@ const Pets = () => {
           </button>
         </div>
 
-        {/* Message pour aucun animal enregistré */}
-        <p className="text-center mb-16 max-w-sm text-gray-600 dark:text-gray-400">
-          Vous n'avez actuellement aucun animal de compagnie enregistré !
-        </p>
+        <div className="max-w-md mx-auto mb-6">
+          <label className="sr-only" htmlFor="pet-search">Rechercher parmi mes animaux</label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              ref={searchInputRef}
+              id="pet-search"
+              type="search"
+              value={petSearch}
+              onChange={(e) => setPetSearch(e.target.value)}
+              placeholder="Filtrer par nom, espèce ou UID…"
+              className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 dark:border-dark-accent bg-white dark:bg-dark-card text-gray-800 dark:text-dark-text"
+            />
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12 text-gray-500 dark:text-gray-400">
+            <Loader2 className="w-8 h-8 animate-spin" />
+          </div>
+        ) : pets.length > 0 ? (
+          <div className="max-w-2xl mx-auto mb-12 grid gap-3">
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-dark-text">Mes animaux</h2>
+            {filteredPets.length === 0 ? (
+              <p className="text-center text-gray-600 dark:text-gray-400 text-sm">Aucun animal ne correspond à la recherche.</p>
+            ) : (
+            filteredPets.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center gap-3 rounded-lg border border-gray-200 dark:border-dark-accent bg-white dark:bg-dark-card p-3"
+              >
+                {p.photo ? (
+                  <img src={mediaUrl(p.photo)} alt="" className="h-14 w-14 rounded-md object-cover shrink-0" />
+                ) : (
+                  <div className="h-14 w-14 rounded-md bg-gray-200 dark:bg-dark-accent shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-800 dark:text-dark-text">{p.name}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {[p.species, p.gender].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => openEditPet(p)}
+                    className="p-2 rounded-lg text-primary hover:bg-purple-50 dark:hover:bg-gray-700"
+                    aria-label="Modifier"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePet(p.id)}
+                    className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-gray-700"
+                    aria-label="Supprimer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+            )}
+          </div>
+        ) : (
+          <p className="text-center mb-16 max-w-sm mx-auto text-gray-600 dark:text-gray-400">
+            Vous n&apos;avez actuellement aucun animal de compagnie enregistré. Connectez-vous pour en ajouter.
+          </p>
+        )}
 
         {/* Bouton d'ajout */}
         <button
           className="rounded-full p-4 fixed bottom-8 right-8 shadow-lg bg-primary text-white hover:bg-primary-dark transition-colors duration-300"
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            resetForm();
+            setIsModalOpen(true);
+          }}
         >
           <PlusCircle className="w-8 h-8" />
         </button>
@@ -108,7 +294,11 @@ const Pets = () => {
             <div className="bg-white dark:bg-dark-card rounded-lg w-full max-w-md p-6 relative max-h-[90vh] overflow-y-auto scrollbar-rounded">
               {/* Bouton de fermeture */}
               <button
-                onClick={() => setIsModalOpen(false)}
+                type="button"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  resetForm();
+                }}
                 className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               >
                 <X className="w-6 h-6" />
@@ -116,11 +306,14 @@ const Pets = () => {
 
               {/* En-tête du modal */}
               <h2 className="text-2xl font-semibold text-gray-800 dark:text-dark-text mb-4">
-                Ajouter un animal
+                {editingPetId ? 'Modifier un animal' : 'Ajouter un animal'}
               </h2>
+              {submitError && (
+                <p className="text-sm text-red-600 dark:text-red-400 mb-3">{submitError}</p>
+              )}
 
               {/* Formulaire */}
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
                 {/* Téléversement d'image */}
                 <div>
                   <label htmlFor="image" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -133,9 +326,9 @@ const Pets = () => {
                     onChange={handleImageChange}
                     className="w-full text-gray-700 dark:text-dark-text"
                   />
-                  {formData.image && (
+                  {imagePreviewUrl && (
                     <img
-                      src={URL.createObjectURL(formData.image)}
+                      src={imagePreviewUrl}
                       alt="Aperçu"
                       className="mt-2 h-20 w-20 rounded-md object-cover"
                     />
@@ -315,7 +508,7 @@ const Pets = () => {
                   className="w-full p-2 rounded bg-primary text-white hover:bg-primary-dark transition-colors duration-300"
                   onClick={handleAddAnimal}
                 >
-                  Ajouter un animal
+                  {editingPetId ? 'Enregistrer les modifications' : 'Ajouter un animal'}
                 </button>
               </form>
             </div>

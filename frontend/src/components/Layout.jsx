@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import Header from './Header';
 import Footer from './Footer';
 import PrivateChat from './Chat/PrivateChat';
+import { usePresencePing } from '../hooks/usePresencePing';
 const Layout = ({ children }) => {
+  usePresencePing(45000);
+
   // Récupérer le mode sombre depuis localStorage ou utiliser le thème du système
   const [darkMode, setDarkMode] = useState(() => {
     // Vérifier si window est défini (côté client)

@@ -1,66 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
+import api from '../../services/api';
 import { Search, Edit, Trash2, Mail, Phone, MapPin, Calendar, User, Crown } from 'lucide-react';
 
+function UserAvatar({ src, alt, className, iconClassName }) {
+  const [failed, setFailed] = useState(false);
+  if (failed || !src) {
+    return (
+      <div className={`${className} flex items-center justify-center bg-gray-200 text-gray-500 shrink-0`}>
+        <User className={iconClassName} />
+      </div>
+    );
+  }
+  return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />;
+}
+
 const AdminUsers = () => {
-  const [users, setUsers] = useState([
-    {
-      id: 1,
-      name: 'Jean Dupont',
-      email: 'jean.dupont@email.com',
-      phone: '+33 6 12 34 56 78',
-      address: 'Paris, France',
-      joinDate: '2023-01-15',
-      lastLogin: '2024-01-20',
-      status: 'active',
-      role: 'user',
-      posts: 42,
-      pets: 2,
-      avatar: '/users/user_1.jpg'
-    },
-    {
-      id: 2,
-      name: 'Marie Lefèvre',
-      email: 'marie.lefevre@email.com',
-      phone: '+33 6 98 76 54 32',
-      address: 'Lyon, France',
-      joinDate: '2023-03-22',
-      lastLogin: '2024-01-19',
-      status: 'active',
-      role: 'vet',
-      posts: 78,
-      pets: 1,
-      avatar: '/users/user_2.jpg'
-    },
-    {
-      id: 3,
-      name: 'Thomas Martin',
-      email: 'thomas.martin@email.com',
-      phone: '+33 6 11 22 33 44',
-      address: 'Marseille, France',
-      joinDate: '2023-07-10',
-      lastLogin: '2024-01-18',
-      status: 'suspended',
-      role: 'user',
-      posts: 23,
-      pets: 1,
-      avatar: '/users/user_3.avif'
-    },
-    {
-      id: 4,
-      name: 'Sophie Dubois',
-      email: 'sophie.dubois@email.com',
-      phone: '+33 6 55 44 33 22',
-      address: 'Toulouse, France',
-      joinDate: '2023-05-08',
-      lastLogin: '2024-01-21',
-      status: 'active',
-      role: 'admin',
-      posts: 156,
-      pets: 3,
-      avatar: '/users/user_4.jpg'
-    }
-  ]);
+  const [users, setUsers] = useState([]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -76,6 +32,37 @@ const AdminUsers = () => {
     role: 'user',
     status: 'active'
   });
+
+  const [loading, setLoading] = useState(false);
+
+  const splitName = (fullName) => {
+    const parts = (fullName || '').trim().split(/\s+/).filter(Boolean);
+    return {
+      first_name: parts[0] || '',
+      last_name: parts.slice(1).join(' '),
+    };
+  };
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (filterRole !== 'all') params.role = filterRole;
+      if (searchTerm) params.q = searchTerm;
+      const res = await api.get('/admin/users/', { params });
+      setUsers(res.data);
+    } catch (err) {
+      console.error('Erreur chargement users:', err);
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, filterRole]);
 
   // Filtrage des utilisateurs
   const filteredUsers = users.filter(user => {
@@ -129,68 +116,66 @@ const AdminUsers = () => {
     setShowModal(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (editingUser) {
-      // Modifier utilisateur existant
-      setUsers(prev => prev.map(user => 
-        user.id === editingUser.id 
-          ? { ...user, ...formData }
-          : user
-      ));
-    } else {
-      // Ajouter nouvel utilisateur
-      const maxId = users.length > 0 ? Math.max(...users.map(u => u.id)) : 0;
-      const newUser = {
-        id: maxId + 1,
-        ...formData,
-        joinDate: new Date().toISOString().split('T')[0],
-        lastLogin: '-',
-        posts: 0,
-        pets: 0,
-        avatar: '/users/default.jpg'
-      };
-      setUsers(prev => [...prev, newUser]);
+
+    const { first_name, last_name } = splitName(formData.name);
+    const payload = {
+      role: formData.role,
+      email: formData.email,
+      phone: formData.phone,
+      first_name,
+      last_name,
+      status: formData.status,
+    };
+
+    try {
+      if (editingUser) {
+        await api.patch(`/admin/users/${editingUser.id}/`, payload);
+      } else {
+        await api.post('/admin/users/create/', payload);
+      }
+
+      setShowModal(false);
+      setEditingUser(null);
+      await fetchUsers();
+    } catch (err) {
+      console.error('Erreur submit user:', err);
+      alert("Impossible d'enregistrer l'utilisateur.");
     }
-    
-    setShowModal(false);
-    setEditingUser(null);
   };
 
-  const handleDeleteUser = (userId) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-      setUsers(prev => prev.filter(user => user.id !== userId));
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) return;
+    try {
+      await api.delete(`/admin/users/${userId}/`);
       setSelectedUsers(prev => prev.filter(id => id !== userId));
+      await fetchUsers();
+    } catch (err) {
+      console.error('Erreur delete user:', err);
+      alert("Impossible de supprimer l'utilisateur.");
     }
   };
 
-  const handleBulkAction = (action) => {
+  const handleBulkAction = async (action) => {
     if (selectedUsers.length === 0) return;
-    
-    switch (action) {
-      case 'activate':
-        setUsers(prev => prev.map(user => 
-          selectedUsers.includes(user.id) 
-            ? { ...user, status: 'active' }
-            : user
-        ));
-        break;
-      case 'suspend':
-        setUsers(prev => prev.map(user => 
-          selectedUsers.includes(user.id) 
-            ? { ...user, status: 'suspended' }
-            : user
-        ));
-        break;
-      case 'delete':
-        if (window.confirm(`Supprimer ${selectedUsers.length} utilisateur(s) ?`)) {
-          setUsers(prev => prev.filter(user => !selectedUsers.includes(user.id)));
-          setSelectedUsers([]);
-        }
-        break;
-      default:
-        break;
+
+    try {
+      if (action === 'activate') {
+        await Promise.all(selectedUsers.map((id) => api.post(`/admin/users/${id}/activate/`)));
+      } else if (action === 'suspend') {
+        await Promise.all(selectedUsers.map((id) => api.post(`/admin/users/${id}/suspend/`)));
+      } else if (action === 'delete') {
+        if (!window.confirm(`Supprimer ${selectedUsers.length} utilisateur(s) ?`)) return;
+        await Promise.all(selectedUsers.map((id) => api.delete(`/admin/users/${id}/`)));
+      } else {
+        return;
+      }
+      setSelectedUsers([]);
+      await fetchUsers();
+    } catch (err) {
+      console.error('Erreur bulk action users:', err);
+      alert("Erreur lors de l'action en lot.");
     }
   };
 
@@ -248,6 +233,8 @@ const AdminUsers = () => {
           <h1 className="text-3xl font-bold mb-2 text-[#8657ff]">Gestion des Utilisateurs</h1>
           <p className="text-gray-600">Gérez les comptes utilisateurs de la plateforme</p>
         </div>
+
+        {loading && <div className="mb-4 text-gray-600">Chargement...</div>}
 
         {/* Filtres et actions */}
         <div className="bg-white rounded-xl p-6 shadow-md mb-6">
@@ -366,13 +353,11 @@ const AdminUsers = () => {
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <img
+                          <UserAvatar
                             src={user.avatar}
                             alt={user.name}
                             className="w-10 h-10 rounded-full object-cover"
-                            onError={(e) => {
-                              e.target.src = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
-                            }}
+                            iconClassName="w-6 h-6"
                           />
                           <div>
                             <div className="font-medium text-gray-900">{user.name}</div>

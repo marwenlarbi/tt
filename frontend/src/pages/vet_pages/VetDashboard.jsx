@@ -1,10 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import VetLayout from './VetLayout';
-
+import api, { mediaUrl } from '../../services/api';
 
 import {
   Calendar,
-  
   Stethoscope,
   Bell,
   PawPrint,
@@ -15,34 +14,78 @@ import {
 
 const VetDashboard = () => {
   const [selectedPeriod, setSelectedPeriod] = useState("today");
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    appointments: { total: 0, pending: 0, done: 0 },
+    patients: { total: 0, new: 0 },
+    consultations: { total: 0, thisMonth: 0 },
+  });
+  const [todayAppointments, setTodayAppointments] = useState([]);
+  const [recentPatients, setRecentPatients] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [user, setUser] = useState(null);
 
-  const stats = {
-    appointments: { total: 8, pending: 3, done: 5 },
-    patients: { total: 124, new: 4 },
-    consultations: { total: 394, thisMonth: 28 },
-    rating: { average: 4.8, reviews: 124 },
+  useEffect(() => {
+    fetchDashboardData();
+  }, [selectedPeriod]);
+
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      setUser(userData);
+
+      const [statsRes, appointmentsRes, patientsRes] = await Promise.all([
+        api.get('/vet/dashboard/stats/'),
+        api.get('/vet/appointments/today/'),
+        api.get('/vet/patients/'),
+      ]);
+
+      setStats(statsRes.data);
+
+      const formattedAppointments = appointmentsRes.data.map(appt => ({
+        id: appt.id,
+        time: appt.time?.substring(0, 5) || '',
+        owner: appt.owner_first_name && appt.owner_last_name 
+          ? `${appt.owner_first_name} ${appt.owner_last_name}` 
+          : appt.owner_name || '',
+        pet: appt.pet_name || '',
+        reason: appt.reason || '',
+        status: appt.status,
+      }));
+      setTodayAppointments(formattedAppointments);
+
+      const petsData = patientsRes.data.slice(0, 4).map(pet => ({
+        id: pet.id,
+        name: pet.name,
+        species: pet.species,
+        owner: pet.owner?.first_name && pet.owner?.last_name
+          ? `${pet.owner.first_name} ${pet.owner.last_name}`
+          : '',
+        lastVisit: pet.lastVisit || '',
+        status: pet.status || 'OK',
+      }));
+      setRecentPatients(petsData);
+
+      const newAlerts = [];
+      if (statsRes.data.appointments?.pending > 0) {
+        newAlerts.push({
+          id: 1,
+          type: "warning",
+          title: "Rendez-vous non confirmés",
+          message: `${statsRes.data.appointments.pending} rendez-vous attendent confirmation`,
+          action: "Voir",
+          link: "/vet/appointments"
+        });
+      }
+      setAlerts(newAlerts);
+
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const todayAppointments = [
-    { id: 1, time: "09:00", owner: "Imen Slama", pet: "Max (Chien)", reason: "Vaccination", status: "done" },
-    { id: 2, time: "10:30", owner: "Ahmed Ben Ali", pet: "Luna (Chat)", reason: "Consultation générale", status: "done" },
-    { id: 3, time: "14:00", owner: "Sara Mejri", pet: "Rocky (Lapin)", reason: "Suivi post-op", status: "pending" },
-    { id: 4, time: "15:30", owner: "Mohamed Trabelsi", pet: "Bella (Chien)", reason: "Examen annuel", status: "pending" },
-    { id: 5, time: "17:00", owner: "Leila Chaabane", pet: "Minou (Chat)", reason: "Problème digestif", status: "pending" },
-  ];
-
-  const recentPatients = [
-    { id: 1, name: "Max", species: "Chien", owner: "Imen Slama", lastVisit: "Aujourd'hui", status: "OK" },
-    { id: 2, name: "Luna", species: "Chat", owner: "Ahmed Ben Ali", lastVisit: "Aujourd'hui", status: "Suivi" },
-    { id: 3, name: "Caramel", species: "Lapin", owner: "Nour Khalil", lastVisit: "Hier", status: "OK" },
-    { id: 4, name: "Rex", species: "Chien", owner: "Omar Belhaj", lastVisit: "Il y a 2 jours", status: "Critique" },
-  ];
-
-  const alerts = [
-    { id: 1, type: "warning", title: "Rendez-vous non confirmés", message: "3 rendez-vous attendent confirmation", action: "Voir", link: "/vet/appointments" },
-    { id: 2, type: "info", title: "Nouveaux messages", message: "2 messages de patients non lus", action: "Lire", link: "/vet/messages" },
-    { id: 3, type: "error", title: "Suivi urgent", message: "Rex (Chien) nécessite un suivi critique", action: "Consulter", link: "/vet/patients" },
-  ];
 
   const StatCard = ({ title, value, subtitle, icon: Icon, color }) => (
     <div className="bg-white rounded-xl p-6 shadow-md">
@@ -87,6 +130,9 @@ const VetDashboard = () => {
     const map = {
       done: "bg-green-100 text-green-800",
       pending: "bg-yellow-100 text-yellow-800",
+      completed: "bg-green-100 text-green-800",
+      confirmed: "bg-blue-100 text-blue-800",
+      cancelled: "bg-red-100 text-red-800",
       OK: "bg-green-100 text-green-800",
       Suivi: "bg-blue-100 text-blue-800",
       Critique: "bg-red-100 text-red-800",
@@ -94,6 +140,9 @@ const VetDashboard = () => {
     const labels = {
       done: "Terminé",
       pending: "En attente",
+      completed: "Terminé",
+      confirmed: "Confirmé",
+      cancelled: "Annulé",
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${map[status] || "bg-gray-100 text-gray-800"}`}>
@@ -102,19 +151,29 @@ const VetDashboard = () => {
     );
   };
 
+  if (loading) {
+    return (
+      <VetLayout>
+        <div className="p-10 flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8657ff]"></div>
+        </div>
+      </VetLayout>
+    );
+  }
+
   return (
     <VetLayout>
       <div className="p-10">
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold mb-2 text-[#0e9f6e]">Tableau de bord Vétérinaire</h1>
-            <p className="text-gray-600">Bienvenue Dr. Mouna — voici votre journée</p>
+            <h1 className="text-3xl font-bold mb-2 text-[#8657ff]">Tableau de bord Vétérinaire</h1>
+            <p className="text-gray-600">Bienvenue {user?.first_name ? `Dr. ${user.first_name}` : 'Docteur'} — voici votre journée</p>
           </div>
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0e9f6e]"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8657ff]"
           >
             <option value="today">Aujourd'hui</option>
             <option value="week">Cette semaine</option>
@@ -134,13 +193,13 @@ const VetDashboard = () => {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard title="Rendez-vous aujourd'hui" value={stats.appointments.total} subtitle={`${stats.appointments.pending} en attente`} icon={Calendar} color="bg-blue-500" />
-          <StatCard title="Patients total" value={stats.patients.total} subtitle={`+${stats.patients.new} nouveaux`} icon={PawPrint} color="bg-purple-500" />
-          <StatCard title="Consultations" value={stats.consultations.total} subtitle={`+${stats.consultations.thisMonth} ce mois`} icon={Stethoscope} color="bg-green-500" />
+          <StatCard title="Rendez-vous aujourd'hui" value={stats.appointments?.total || 0} subtitle={`${stats.appointments?.pending || 0} en attente`} icon={Calendar} color="bg-blue-500" />
+          <StatCard title="Patients total" value={stats.patients?.total || 0} subtitle={`+${stats.patients?.new || 0} nouveaux`} icon={PawPrint} color="bg-purple-500" />
+          <StatCard title="Consultations" value={stats.consultations?.total || 0} subtitle={`+${stats.consultations?.thisMonth || 0} ce mois`} icon={Stethoscope} color="bg-green-500" />
           <StatCard
             title="Note moyenne"
-            value={stats.rating.average}
-            subtitle={`${stats.rating.reviews} avis`}
+            value="4.8"
+            subtitle="124 avis"
             icon={Star}
             color="bg-yellow-500"
           />
@@ -150,22 +209,26 @@ const VetDashboard = () => {
           {/* Rendez-vous du jour */}
           <div className="bg-white rounded-xl p-6 shadow-md">
             <h3 className="text-lg font-semibold mb-4 text-gray-800">Rendez-vous du jour</h3>
-            <div className="space-y-3">
-              {todayAppointments.map((appt) => (
-                <div key={appt.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="text-center min-w-[48px]">
-                    <p className="text-sm font-bold text-[#0e9f6e]">{appt.time}</p>
+            {todayAppointments.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">Aucun rendez-vous aujourd'hui</p>
+            ) : (
+              <div className="space-y-3">
+                {todayAppointments.map((appt) => (
+                  <div key={appt.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="text-center min-w-[48px]">
+                      <p className="text-sm font-bold text-[#8657ff]">{appt.time}</p>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">{appt.pet}</p>
+                      <p className="text-xs text-gray-500">{appt.owner} — {appt.reason}</p>
+                    </div>
+                    {getStatusBadge(appt.status)}
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{appt.pet}</p>
-                    <p className="text-xs text-gray-500">{appt.owner} — {appt.reason}</p>
-                  </div>
-                  {getStatusBadge(appt.status)}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
             <div className="mt-4 text-center">
-              <a href="/vet/appointments" className="text-[#0e9f6e] hover:text-green-700 font-medium text-sm">
+              <a href="/vet/appointments" className="text-[#8657ff] hover:text-green-700 font-medium text-sm">
                 Gérer les rendez-vous →
               </a>
             </div>
@@ -174,22 +237,26 @@ const VetDashboard = () => {
           {/* Patients récents */}
           <div className="bg-white rounded-xl p-6 shadow-md">
             <h3 className="text-lg font-semibold mb-4 text-gray-800">Patients récents</h3>
-            <div className="space-y-3">
-              {recentPatients.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg">
-                  <div className="bg-green-100 text-green-700 rounded-full w-10 h-10 flex items-center justify-center font-bold text-sm">
-                    {p.name[0]}
+            {recentPatients.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">Aucun patient pour le moment</p>
+            ) : (
+              <div className="space-y-3">
+                {recentPatients.map((p) => (
+                  <div key={p.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg">
+                    <div className="bg-green-100 text-green-700 rounded-full w-10 h-10 flex items-center justify-center font-bold text-sm">
+                      {p.name[0]}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm text-gray-900">{p.name} <span className="text-gray-400">({p.species})</span></p>
+                      <p className="text-xs text-gray-500">{p.owner} — {p.lastVisit || 'Première visite'}</p>
+                    </div>
+                    {getStatusBadge(p.status)}
                   </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm text-gray-900">{p.name} <span className="text-gray-400">({p.species})</span></p>
-                    <p className="text-xs text-gray-500">{p.owner} — {p.lastVisit}</p>
-                  </div>
-                  {getStatusBadge(p.status)}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
             <div className="mt-4 text-center">
-              <a href="/vet/patients" className="text-[#0e9f6e] hover:text-green-700 font-medium text-sm">
+              <a href="/vet/patients" className="text-[#8657ff] hover:text-green-700 font-medium text-sm">
                 Voir tous les patients →
               </a>
             </div>
@@ -211,7 +278,7 @@ const VetDashboard = () => {
                 href={action.href}
                 className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-colors"
               >
-                <action.icon className="w-8 h-8 text-[#0e9f6e] mb-2" />
+                <action.icon className="w-8 h-8 text-[#8657ff] mb-2" />
                 <span className="text-sm font-medium">{action.label}</span>
               </a>
             ))}

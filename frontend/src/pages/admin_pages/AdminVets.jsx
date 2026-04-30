@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
+import api from '../../services/api';
 
 import { 
   Search, 
@@ -16,120 +17,25 @@ import {
   Star,
   Shield,
   Download,
-  Plus
+  Plus,
+  User,
+  X,
 } from 'lucide-react';
 
+function VetAvatar({ src, alt, className, iconClassName }) {
+  const [failed, setFailed] = useState(false);
+  if (failed || !src) {
+    return (
+      <div className={`${className} flex items-center justify-center bg-gray-200 text-gray-500 shrink-0`}>
+        <User className={iconClassName} />
+      </div>
+    );
+  }
+  return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />;
+}
+
 const AdminVets = () => {
-  const [vets, setVets] = useState([
-    {
-      id: 1,
-      name: 'Dr. Mouna Boukadi',
-      email: 'dr.mouna@vetclinic.com',
-      phone: '+216 98 356 535',
-      city: 'Ben Arous',
-      address: '123 Avenue Habib Bourguiba, Ben Arous',
-      specialty: 'Médecine Générale',
-      specialties: ['Médecine Générale', 'Chirurgie'],
-      licenseNumber: 'VET-TN-2020-001',
-      joinDate: '2023-01-15',
-      status: 'verified',
-      rating: 4.8,
-      reviews: 124,
-      consultations: 456,
-      image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6Kqt6vs7YvZXCB-7NpouY4jDPLdClHA4NrA&s',
-      experience: 8,
-      education: 'École Nationale de Médecine Vétérinaire de Sidi Thabet',
-      languages: ['Français', 'Arabe', 'Anglais'],
-      schedule: {
-        Monday: '09:00 AM - 05:00 PM',
-        Tuesday: '09:00 AM - 05:00 PM',
-        Wednesday: '09:00 AM - 05:00 PM',
-        Thursday: '09:00 AM - 05:00 PM',
-        Friday: '09:00 AM - 03:00 PM',
-        Saturday: 'closed',
-        Sunday: '09:00 AM - 03:00 PM'
-      }
-    },
-    {
-      id: 2,
-      name: 'Dr. Walid Ben Mustapha',
-      email: 'dr.walid@dermatovets.tn',
-      phone: '+216 71 234 567',
-      city: 'Tunis',
-      address: '45 Rue de la Liberté, Tunis',
-      specialty: 'Dermatologie',
-      specialties: ['Dermatologie', 'Allergologie'],
-      licenseNumber: 'VET-TN-2019-045',
-      joinDate: '2023-03-22',
-      status: 'verified',
-      rating: 4.6,
-      reviews: 89,
-      consultations: 234,
-      image: '/api/placeholder/150/150',
-      experience: 12,
-      education: 'Université de Tunis, École de Médecine Vétérinaire',
-      languages: ['Français', 'Arabe'],
-      schedule: {
-        Monday: '24 h',
-        Tuesday: '09:00 AM - 05:00 PM',
-        Wednesday: '09:00 AM - 05:00 PM',
-        Thursday: '09:00 AM - 05:00 PM',
-        Friday: '09:00 AM - 03:00 PM',
-        Saturday: 'closed',
-        Sunday: '09:00 AM - 03:00 PM'
-      }
-    },
-    {
-      id: 3,
-      name: 'Dr. Sarah Johnson',
-      email: 'dr.sarah@petcare.com',
-      phone: '+216 22 987 654',
-      city: 'Sfax',
-      address: '78 Avenue Tahar Sfar, Sfax',
-      specialty: 'Cardiologie',
-      specialties: ['Cardiologie', 'Médecine Interne'],
-      licenseNumber: 'VET-TN-2021-078',
-      joinDate: '2023-06-10',
-      status: 'pending',
-      rating: 4.2,
-      reviews: 23,
-      consultations: 67,
-      image: '/api/placeholder/150/150',
-      experience: 5,
-      education: 'École Vétérinaire de Lyon, France',
-      languages: ['Français', 'Anglais'],
-      schedule: {
-        Monday: '08:00 AM - 04:00 PM',
-        Tuesday: '08:00 AM - 04:00 PM',
-        Wednesday: '08:00 AM - 04:00 PM',
-        Thursday: '08:00 AM - 04:00 PM',
-        Friday: '08:00 AM - 02:00 PM',
-        Saturday: 'closed',
-        Sunday: 'closed'
-      }
-    },
-    {
-      id: 4,
-      name: 'Dr. Ahmed Zouari',
-      email: 'ahmed.zouari@fakemail.com',
-      phone: '+216 99 111 222',
-      city: 'Tunis',
-      address: 'Adresse non vérifiée',
-      specialty: 'Non spécifié',
-      specialties: [],
-      licenseNumber: 'INVALID-LICENSE',
-      joinDate: '2024-01-05',
-      status: 'rejected',
-      rating: 2.1,
-      reviews: 3,
-      consultations: 5,
-      image: '/api/placeholder/150/150',
-      experience: 0,
-      education: 'Non vérifié',
-      languages: ['Arabe'],
-      schedule: {}
-    }
-  ]);
+  const [vets, setVets] = useState([]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -152,6 +58,38 @@ const AdminVets = () => {
     education: '',
     status: 'pending'
   });
+
+  const [loading, setLoading] = useState(false);
+
+  const splitName = (fullName) => {
+    const parts = (fullName || '').trim().split(/\s+/).filter(Boolean);
+    return {
+      first_name: parts[0] || '',
+      last_name: parts.slice(1).join(' '),
+    };
+  };
+
+  const fetchVets = async () => {
+    setLoading(true);
+    try {
+      const params = { role: 'vet' };
+      if (searchTerm) params.q = searchTerm;
+      if (filterStatus !== 'all') params.status = filterStatus;
+      const res = await api.get('/admin/users/', { params });
+      setVets(res.data);
+    } catch (err) {
+      console.error('Erreur chargement vets:', err);
+      // Optionnel: on garde l'ancien état si déjà rempli
+      setVets([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, filterStatus]);
 
   // Filtrage des vétérinaires
   const filteredVets = vets.filter(vet => {
@@ -186,54 +124,44 @@ const AdminVets = () => {
     }
   };
 
-  const handleVetAction = (vetId, action) => {
-    setVets(prev => prev.map(vet => {
-      if (vet.id === vetId) {
-        switch (action) {
-          case 'verify':
-            return { ...vet, status: 'verified' };
-          case 'suspend':
-            return { ...vet, status: 'suspended' };
-          case 'reject':
-            return { ...vet, status: 'rejected' };
-          case 'pending':
-            return { ...vet, status: 'pending' };
-          default:
-            return vet;
-        }
-      }
-      return vet;
-    }));
+  const handleVetAction = async (vetId, action) => {
+    try {
+      if (action === 'verify') await api.post(`/admin/vets/${vetId}/verify/`);
+      if (action === 'suspend') await api.post(`/admin/vets/${vetId}/suspend/`);
+      if (action === 'reject') await api.post(`/admin/vets/${vetId}/reject/`);
+      await fetchVets();
+    } catch (err) {
+      console.error('Erreur action vet:', err);
+      alert("Impossible d'effectuer l'action sur le vétérinaire.");
+    }
   };
 
-  const handleBulkAction = (action) => {
+  const handleBulkAction = async (action) => {
     if (selectedVets.length === 0) return;
-    
-    switch (action) {
-      case 'verify':
-        setVets(prev => prev.map(vet => 
-          selectedVets.includes(vet.id) 
-            ? { ...vet, status: 'verified' }
-            : vet
-        ));
-        break;
-      case 'suspend':
-        setVets(prev => prev.map(vet => 
-          selectedVets.includes(vet.id) 
-            ? { ...vet, status: 'suspended' }
-            : vet
-        ));
-        break;
-      case 'delete':
-        if (window.confirm(`Supprimer ${selectedVets.length} vétérinaire(s) ?`)) {
-          setVets(prev => prev.filter(vet => !selectedVets.includes(vet.id)));
-        }
-        break;
-      default:
+
+    try {
+      if (action === 'verify') {
+        await Promise.all(
+          selectedVets.map((id) => api.post(`/admin/vets/${id}/verify/`))
+        );
+      } else if (action === 'suspend') {
+        await Promise.all(
+          selectedVets.map((id) => api.post(`/admin/vets/${id}/suspend/`))
+        );
+      } else if (action === 'delete') {
+        if (!window.confirm(`Supprimer ${selectedVets.length} vétérinaire(s) ?`)) return;
+        await Promise.all(selectedVets.map((id) => api.delete(`/admin/users/${id}/`)));
+      } else {
         console.warn(`Unhandled bulk action: ${action}`);
-        break;
+        return;
+      }
+
+      setSelectedVets([]);
+      await fetchVets();
+    } catch (err) {
+      console.error('Erreur bulk action vets:', err);
+      alert("Erreur lors de l'action en lot.");
     }
-    setSelectedVets([]);
   };
 
   const openModal = (vet) => {
@@ -280,41 +208,44 @@ const AdminVets = () => {
     setShowAddModal(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (editingVet) {
-      // Modifier vétérinaire existant
-      setVets(prev => prev.map(vet => 
-        vet.id === editingVet.id 
-          ? { ...vet, ...formData }
-          : vet
-      ));
-    } else {
-      // Ajouter nouveau vétérinaire
-      const newVet = {
-        id: Math.max(...vets.map(v => v.id)) + 1,
-        ...formData,
-        joinDate: new Date().toISOString().split('T')[0],
-        rating: 0,
-        reviews: 0,
-        consultations: 0,
-        image: '/api/placeholder/150/150',
-        specialties: [formData.specialty],
-        languages: ['Français', 'Arabe'],
-        schedule: {}
-      };
-      setVets(prev => [...prev, newVet]);
+    const { first_name, last_name } = splitName(formData.name);
+    const payload = {
+      role: 'vet',
+      email: formData.email,
+      phone: formData.phone,
+      first_name,
+      last_name,
+      status: formData.status,
+    };
+
+    try {
+      if (editingVet) {
+        await api.patch(`/admin/users/${editingVet.id}/`, payload);
+      } else {
+        await api.post('/admin/users/create/', payload);
+      }
+
+      setShowAddModal(false);
+      setEditingVet(null);
+      await fetchVets();
+    } catch (err) {
+      console.error('Erreur submit vet:', err);
+      alert("Impossible d'enregistrer le vétérinaire.");
     }
-    
-    setShowAddModal(false);
-    setEditingVet(null);
   };
 
-  const handleDeleteVet = (vetId) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce vétérinaire ?')) {
-      setVets(prev => prev.filter(vet => vet.id !== vetId));
+  const handleDeleteVet = async (vetId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce vétérinaire ?')) return;
+    try {
+      await api.delete(`/admin/users/${vetId}/`);
       setSelectedVets(prev => prev.filter(id => id !== vetId));
+      await fetchVets();
+    } catch (err) {
+      console.error('Erreur delete vet:', err);
+      alert("Impossible de supprimer le vétérinaire.");
     }
   };
 
@@ -376,30 +307,29 @@ const AdminVets = () => {
     URL.revokeObjectURL(url);
   };
 
-  const VetModal = () => {
+  const renderVetModal = () => {
     if (!selectedVet) return null;
-
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg w-full max-w-4xl p-6 relative max-h-[90vh] overflow-y-auto">
           <button
+            type="button"
             onClick={closeModal}
             className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+            aria-label="Fermer"
           >
-            ✕
+            <X className="w-5 h-5" />
           </button>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Informations personnelles */}
             <div>
               <div className="flex items-center mb-4">
-                <img
+                <VetAvatar
                   src={selectedVet.image}
                   alt={selectedVet.name}
                   className="w-20 h-20 rounded-full mr-4 object-cover"
-                  onError={(e) => {
-                    e.target.src = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
-                  }}
+                  iconClassName="w-10 h-10"
                 />
                 <div>
                   <h2 className="text-2xl font-bold">{selectedVet.name}</h2>
@@ -557,7 +487,7 @@ const AdminVets = () => {
     );
   };
 
-  const AddVetModal = () => {
+  const renderAddVetModal = () => {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
@@ -577,7 +507,7 @@ const AdminVets = () => {
               type="text"
               placeholder="Nom complet"
               value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
               className="col-span-2 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]"
               required
             />
@@ -585,7 +515,7 @@ const AdminVets = () => {
               type="email"
               placeholder="Email"
               value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
               className="p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]"
               required
             />
@@ -593,54 +523,54 @@ const AdminVets = () => {
               type="tel"
               placeholder="Téléphone"
               value={formData.phone}
-              onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
               className="p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]"
             />
             <input
               type="text"
               placeholder="Ville"
               value={formData.city}
-              onChange={(e) => setFormData({...formData, city: e.target.value})}
+              onChange={(e) => setFormData((prev) => ({ ...prev, city: e.target.value }))}
               className="p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]"
             />
             <input
               type="text"
               placeholder="Spécialité"
               value={formData.specialty}
-              onChange={(e) => setFormData({...formData, specialty: e.target.value})}
+              onChange={(e) => setFormData((prev) => ({ ...prev, specialty: e.target.value }))}
               className="p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]"
             />
             <input
               type="text"
               placeholder="Adresse complète"
               value={formData.address}
-              onChange={(e) => setFormData({...formData, address: e.target.value})}
+              onChange={(e) => setFormData((prev) => ({ ...prev, address: e.target.value }))}
               className="col-span-2 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]"
             />
             <input
               type="text"
               placeholder="Numéro de licence"
               value={formData.licenseNumber}
-              onChange={(e) => setFormData({...formData, licenseNumber: e.target.value})}
+              onChange={(e) => setFormData((prev) => ({ ...prev, licenseNumber: e.target.value }))}
               className="p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]"
             />
             <input
               type="number"
               placeholder="Années d'expérience"
               value={formData.experience}
-              onChange={(e) => setFormData({...formData, experience: e.target.value})}
+              onChange={(e) => setFormData((prev) => ({ ...prev, experience: e.target.value }))}
               className="p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]"
             />
             <input
               type="text"
               placeholder="Formation/Éducation"
               value={formData.education}
-              onChange={(e) => setFormData({...formData, education: e.target.value})}
+              onChange={(e) => setFormData((prev) => ({ ...prev, education: e.target.value }))}
               className="col-span-2 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]"
             />
             <select
               value={formData.status}
-              onChange={(e) => setFormData({...formData, status: e.target.value})}
+              onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value }))}
               className="col-span-2 p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]"
             >
               <option value="pending">En attente</option>
@@ -696,6 +626,8 @@ const AdminVets = () => {
             </button>
           </div>
         </div>
+
+        {loading && <div className="mb-4 text-gray-600">Chargement...</div>}
 
         {/* Filtres et recherche */}
         <div className="bg-white rounded-xl p-6 shadow-md mb-6">
@@ -815,7 +747,7 @@ const AdminVets = () => {
               <div>
                 <p className="text-sm text-gray-600">Note moyenne</p>
                 <p className="text-2xl font-bold text-purple-600">
-                  {(vets.reduce((sum, v) => sum + v.rating, 0) / vets.length).toFixed(1)}
+                  {vets.length ? (vets.reduce((sum, v) => sum + (Number(v.rating) || 0), 0) / vets.length).toFixed(1) : '0.0'}
                 </p>
               </div>
               <Star className="w-8 h-8 text-purple-500" />
@@ -859,13 +791,11 @@ const AdminVets = () => {
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <img
+                        <VetAvatar
                           src={vet.image}
                           alt={vet.name}
                           className="w-10 h-10 rounded-full object-cover"
-                          onError={(e) => {
-                            e.target.src = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
-                          }}
+                          iconClassName="w-6 h-6"
                         />
                         <div>
                           <div className="font-medium">{vet.name}</div>
@@ -936,8 +866,8 @@ const AdminVets = () => {
         </div>
 
         {/* Modals */}
-        {showModal && <VetModal />}
-        {showAddModal && <AddVetModal />}
+        {showModal && renderVetModal()}
+        {showAddModal && renderAddVetModal()}
       </div>
     </AdminLayout>
   );

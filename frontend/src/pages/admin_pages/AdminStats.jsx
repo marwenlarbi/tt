@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import AdminLayout from './AdminLayout';import { 
   Users, 
   FileText, 
@@ -15,22 +15,49 @@ import AdminLayout from './AdminLayout';import {
   Download,
   Coins
 } from 'lucide-react';
+import api from '../../services/api';
 
 const AdminStats = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('30');
   const [selectedChart, setSelectedChart] = useState('users');
+  const [loading, setLoading] = useState(false);
 
-  // Données statistiques
-  const stats = {
-    totalUsers: 1247,
-    activeUsers: 892,
-    newUsers: 45,
-    totalPosts: 3456,
-    totalProducts: 89,
-    totalOrders: 234,
-    revenue: 15674.50,
-    growthRate: 12.5
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    activeUsers: 0,
+    newUsers: 0,
+    totalPosts: 0,
+    totalProducts: 0,
+    totalOrders: 0,
+    revenue: 0,
+    growthRate: 0,
+  });
+
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/admin/dashboard/');
+      const d = res.data;
+      setStats({
+        totalUsers: d.users?.total ?? 0,
+        activeUsers: d.users?.active ?? 0,
+        newUsers: 0,
+        totalPosts: d.posts?.total ?? 0,
+        totalProducts: d.products?.total ?? 0,
+        totalOrders: d.orders?.total ?? 0,
+        revenue: d.orders?.revenue ?? 0,
+        growthRate: 0,
+      });
+    } catch (e) {
+      console.error('Erreur stats admin:', e);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
   const userStats = [
     { month: 'Jan', users: 100, active: 80 },
@@ -169,6 +196,8 @@ const AdminStats = () => {
             </button>
           </div>
         </div>
+
+        {loading && <div className="mb-4 text-gray-600">Chargement...</div>}
 
         {/* Cartes de statistiques principales */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

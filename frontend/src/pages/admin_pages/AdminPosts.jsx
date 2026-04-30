@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import AdminLayout from './AdminLayout';
+import api from '../../services/api';
 import { 
   Search, 
   Eye, 
@@ -22,66 +23,37 @@ const AdminPosts = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedPost, setSelectedPost] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Données d'exemple des posts
-  const [posts, setPosts] = useState([
-    {
-      id: 'POST001',
-      author: 'Marie Dubois',
-      authorAvatar: '👩‍🦰',
-      content: 'Mon petit chaton Milo a enfin appris à utiliser sa litière ! Je suis si fière de lui. Avez-vous des conseils pour l\'habituer au brossage ?',
-      type: 'text',
-      date: '2024-03-15T10:30:00',
-      status: 'approved',
-      likes: 24,
-      comments: 8,
-      reports: 0,
-      image: null,
-      tags: ['chat', 'education', 'conseils']
-    },
-    {
-      id: 'POST002',
-      author: 'Jean Martin',
-      authorAvatar: '👨',
-      content: 'Promenade matinale avec Rex dans le parc. Il adore courir après les écureuils ! 🐕',
-      type: 'image',
-      date: '2024-03-14T08:15:00',
-      status: 'pending',
-      likes: 15,
-      comments: 3,
-      reports: 0,
-      image: 'https://example.com/dog-park.jpg',
-      tags: ['chien', 'promenade', 'exercice']
-    },
-    {
-      id: 'POST003',
-      author: 'Sophie Legrand',
-      authorAvatar: '👩',
-      content: 'URGENT: Mon chat a mangé quelque chose de bizarre et vomit depuis ce matin. Que dois-je faire ?',
-      type: 'text',
-      date: '2024-03-13T14:45:00',
-      status: 'flagged',
-      likes: 5,
-      comments: 12,
-      reports: 2,
-      image: null,
-      tags: ['urgence', 'sante', 'chat']
-    },
-    {
-      id: 'POST004',
-      author: 'Pierre Blanc',
-      authorAvatar: '👨‍🦳',
-      content: 'Regardez cette vidéo de mon perroquet qui parle ! Il dit maintenant plus de 20 mots.',
-      type: 'video',
-      date: '2024-03-12T16:20:00',
-      status: 'rejected',
-      likes: 2,
-      comments: 1,
-      reports: 1,
-      image: null,
-      tags: ['oiseau', 'perroquet', 'dressage']
+  const [posts, setPosts] = useState([]);
+
+  const fetchPosts = async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (searchTerm) params.q = searchTerm;
+      if (statusFilter !== 'all') params.status = statusFilter;
+      const res = await api.get('/admin/posts/', { params });
+      // Normaliser id -> "POST###"
+      setPosts(
+        (res.data || []).map((p) => ({
+          ...p,
+          id: `POST${String(p.id).padStart(3, '0')}`,
+          authorAvatar: '👤',
+        }))
+      );
+    } catch (e) {
+      console.error('Erreur posts admin:', e);
+      setPosts([]);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    fetchPosts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, statusFilter]);
 
   const statusConfig = {
     pending: { label: 'En attente', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
@@ -96,23 +68,30 @@ const AdminPosts = () => {
     video: { label: 'Vidéo', icon: Video }
   };
 
-  const filteredPosts = posts.filter(post => {
-    const matchesSearch = post.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         post.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         post.content.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || post.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredPosts = posts;
 
-  const updatePostStatus = (postId, newStatus) => {
-    setPosts(posts.map(post => 
-      post.id === postId ? { ...post, status: newStatus } : post
-    ));
+  const updatePostStatus = async (postId, newStatus) => {
+    // postId ici est "POST###" => on extrait l'id numérique
+    const numericId = parseInt(String(postId).replace('POST', ''), 10);
+    try {
+      await api.patch(`/admin/posts/${numericId}/`, { status: newStatus });
+      await fetchPosts();
+    } catch (e) {
+      console.error('Erreur update post status:', e);
+      alert("Impossible de mettre à jour le statut du post.");
+    }
   };
 
-  const deletePost = (postId) => {
+  const deletePost = async (postId) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer ce post ?')) {
-      setPosts(posts.filter(post => post.id !== postId));
+      const numericId = parseInt(String(postId).replace('POST', ''), 10);
+      try {
+        await api.delete(`/admin/posts/${numericId}/`);
+        await fetchPosts();
+      } catch (e) {
+        console.error('Erreur delete post:', e);
+        alert("Impossible de supprimer le post.");
+      }
     }
   };
 
@@ -165,6 +144,8 @@ const AdminPosts = () => {
             Exporter
           </button>
         </div>
+
+        {loading && <div className="mb-4 text-gray-600">Chargement...</div>}
 
         {/* Statistiques rapides */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

@@ -55,6 +55,8 @@ INSTALLED_APPS = [
     "appointments",
     "adoption",
     "products",
+    "posts",
+    "notifications",
     #"orders",
 ]
 
@@ -82,6 +84,12 @@ MIDDLEWARE = [
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
     CORS_ALLOW_CREDENTIALS = True
+    # Préflight CORS : autoriser explicitement les headers utilisés par Axios/JWT
+    CORS_ALLOW_HEADERS = [
+        "authorization",
+        "content-type",
+        "accept",
+    ]
 else:
     CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOWED_ORIGINS = [
@@ -90,6 +98,11 @@ else:
         # "https://www.tondomaine.com",
     ]
     CORS_ALLOW_CREDENTIALS = True
+    CORS_ALLOW_HEADERS = [
+        "authorization",
+        "content-type",
+        "accept",
+    ]
 
 
 # =============================================================================
@@ -98,10 +111,10 @@ else:
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
+        # JWT (simplejwt) pour l'API
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        # Gardé en fallback (utile pour l'admin Django)
         "rest_framework.authentication.SessionAuthentication",
-        # Décommente si tu veux passer à JWT (plus moderne)
-        # "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",

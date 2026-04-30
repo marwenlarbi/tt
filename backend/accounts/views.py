@@ -1,11 +1,15 @@
 # accounts/views.py
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import AllowAny
-from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from rest_framework import status
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from .models import UserProfile
+from .serializers import MeSerializer
 
 User = get_user_model()
 
@@ -44,6 +48,10 @@ class RegisterView(APIView):
             )
 
         # 4. Validation du rôle
+        # Compat héritage: ancien rôle "owner" -> nouveau rôle "user"
+        if data.get('role') == 'owner':
+            data['role'] = 'user'
+
         valid_roles = ['user', 'vet']  # Pas d'admin via inscription publique
         if data['role'] not in valid_roles:
             return Response(
@@ -106,14 +114,27 @@ class LoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Changement ici : utilise username = email
-        user = authenticate(request, username=email, password=password)
+        # Auth robuste : on cherche par email, puis check_password.
+        # (Evitera un échec si `username` n'est pas exactement égal à `email` dans la DB.)
+        # Important: dans ta DB l'email n'est pas forcément unique, donc on ne peut
+        # pas utiliser `get()` (sinon 500 MultipleObjectsReturned).
+        candidates = User.objects.filter(email=email).order_by("id")
+        user = None
+        for u in candidates:
+            if u.check_password(password):
+                user = u
+                break
 
-        if user is None:
+        if not user:
             return Response(
                 {"detail": "Identifiants incorrects"},
                 status=status.HTTP_401_UNAUTHORIZED
             )
+
+        # Robustesse admin :
+        # Certains imports MySQL peuvent laisser `role` à une valeur legacy (ex: 'owner'),
+        # mais l'utilisateur est admin via is_staff/is_superuser.
+        effective_role = "admin" if (getattr(user, "is_superuser", False) or getattr(user, "is_staff", False)) else user.role
 
         refresh = RefreshToken.for_user(user)
 
@@ -124,10 +145,67 @@ class LoginView(APIView):
                 "email": user.email,
                 "first_name": user.first_name,
                 "last_name": user.last_name,
-                "role": user.role,
+                "role": effective_role,
             },
             "tokens": {
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
             }
         }, status=status.HTTP_200_OK)
+
+
+class MeProfileView(APIView):
+    """
+    Profil de l'utilisateur connecté (JWT).
+    GET /api/user/profile/ — lecture
+    PATCH /api/user/profile/ — mise à jour partielle (JSON ou multipart pour avatar)
+    """
+
+    permission_classes = [IsAuthenticated]
+    parser_classes = (JSONParser, FormParser, MultiPartParser)
+
+    def get(self, request):
+        UserProfile.objects.get_or_create(user=request.user)
+        return Response(
+            MeSerializer(request.user, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def patch(self, request):
+        UserProfile.objects.get_or_create(user=request.user)
+        profile = request.user.profile
+        avatar = request.FILES.get("avatar")
+        if avatar:
+            profile.avatar = avatar
+            profile.save()
+        if request.data:
+            serializer = MeSerializer(
+                request.user,
+                data=request.data,
+                partial=True,
+                context={"request": request},
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+        if avatar or request.data:
+            request.user.refresh_from_db()
+        return Response(
+            MeSerializer(request.user, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class VetScheduleView(APIView):
+    """API pour sauvegarder les horaires du veterinario."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        return Response({"schedule": profile.schedule or {}})
+
+    def post(self, request):
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        schedule = request.data.get("schedule", {})
+        profile.schedule = schedule
+        profile.save()
+        return Response({"schedule": profile.schedule, "message": "Horaires enregistrés"})

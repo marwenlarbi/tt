@@ -72,13 +72,27 @@ const Signup = () => {
       console.log('Inscription réussie →', data);
 
       // Stockage du token JWT (si ton backend en renvoie un)
-      if (data.access) {
-        localStorage.setItem('access_token', data.access);
-        localStorage.setItem('refresh_token', data.refresh);
+      if (data.tokens?.access) {
+        localStorage.setItem('access_token', data.tokens.access);
+        localStorage.setItem('refresh_token', data.tokens.refresh);
+      }
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user));
       }
 
       alert('Compte créé avec succès !');
-      navigate('/login');
+      let role = data.user?.role;
+      if (role === 'owner') role = 'user';
+      if (data.tokens?.access) {
+        if (role === 'user') navigate('/home');
+        else if (role === 'vet') navigate('/vet/dashboard');
+        else if (role === 'admin') {
+          localStorage.setItem('isAdmin', 'true');
+          navigate('/admin/dashboard');
+        } else navigate('/login');
+      } else {
+        navigate('/login');
+      }
 
     } catch (err) {
       console.error('Erreur inscription :', err);

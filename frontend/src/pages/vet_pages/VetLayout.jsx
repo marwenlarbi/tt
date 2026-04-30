@@ -31,7 +31,7 @@ const VetLayout = ({ children }) => {
   return (
     <div className="flex min-h-screen bg-gray-100">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#0e9f6e] text-white p-6 shadow-lg flex flex-col">
+      <aside className="w-64 bg-[#8657ff] text-white p-6 shadow-lg flex flex-col">
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-1">
             <Stethoscope className="w-7 h-7 text-white" />

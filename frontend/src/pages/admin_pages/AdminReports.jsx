@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import AdminLayout from './AdminLayout';
+import api from '../../services/api';
 import { 
   Search, 
   Eye, 
@@ -24,74 +25,36 @@ const AdminReports = () => {
   const [typeFilter, setTypeFilter] = useState('all');
   const [selectedReport, setSelectedReport] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Données d'exemple des signalements
-  const [reports, setReports] = useState([
-    {
-      id: 'RPT001',
-      type: 'post',
-      contentId: 'POST123',
-      reportedBy: 'Marie Dupont',
-      reporterEmail: 'marie.dupont@email.com',
-      reportedUser: 'Jean Martin',
-      reportedUserEmail: 'jean.martin@email.com',
-      reason: 'Contenu inapproprié',
-      description: 'Ce post contient des images choquantes qui ne respectent pas les règles de la communauté.',
-      content: 'Regardez cette vidéo de combat d\'animaux...',
-      date: '2024-03-15T10:30:00',
-      status: 'pending',
-      priority: 'high',
-      category: 'inappropriate_content'
-    },
-    {
-      id: 'RPT002',
-      type: 'user',
-      contentId: 'USER456',
-      reportedBy: 'Sophie Legrand',
-      reporterEmail: 'sophie.legrand@email.com',
-      reportedUser: 'Pierre Blanc',
-      reportedUserEmail: 'pierre.blanc@email.com',
-      reason: 'Harcèlement',
-      description: 'Cet utilisateur m\'envoie des messages inappropriés en privé depuis plusieurs jours.',
-      content: 'Profil utilisateur suspect',
-      date: '2024-03-14T14:20:00',
-      status: 'investigating',
-      priority: 'high',
-      category: 'harassment'
-    },
-    {
-      id: 'RPT003',
-      type: 'comment',
-      contentId: 'CMT789',
-      reportedBy: 'Lucas Bernard',
-      reporterEmail: 'lucas.bernard@email.com',
-      reportedUser: 'Anna Moreau',
-      reportedUserEmail: 'anna.moreau@email.com',
-      reason: 'Spam',
-      description: 'Ce commentaire est clairement du spam publicitaire.',
-      content: 'Achetez nos produits miracle pour animaux sur...',
-      date: '2024-03-13T09:15:00',
-      status: 'resolved',
-      priority: 'medium',
-      category: 'spam'
-    },
-    {
-      id: 'RPT004',
-      type: 'post',
-      contentId: 'POST456',
-      reportedBy: 'Emma Rousseau',
-      reporterEmail: 'emma.rousseau@email.com',
-      reportedUser: 'Thomas Petit',
-      reportedUserEmail: 'thomas.petit@email.com',
-      reason: 'Fausses informations',
-      description: 'Ce post diffuse de fausses informations médicales dangereuses pour les animaux.',
-      content: 'Donnez du chocolat à votre chien, c\'est bon pour lui...',
-      date: '2024-03-12T16:45:00',
-      status: 'rejected',
-      priority: 'high',
-      category: 'misinformation'
+  const [reports, setReports] = useState([]);
+
+  const fetchReports = async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (searchTerm) params.q = searchTerm;
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (typeFilter !== 'all') params.type = typeFilter;
+      const res = await api.get('/admin/reports/', { params });
+      setReports(
+        (res.data || []).map((r) => ({
+          ...r,
+          id: `RPT${String(r.id).padStart(3, '0')}`,
+        }))
+      );
+    } catch (e) {
+      console.error('Erreur reports admin:', e);
+      setReports([]);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    fetchReports();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, statusFilter, typeFilter]);
 
   const statusConfig = {
     pending: { label: 'En attente', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
@@ -122,25 +85,28 @@ const AdminReports = () => {
     other: 'Autre'
   };
 
-  const filteredReports = reports.filter(report => {
-    const matchesSearch = report.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         report.reportedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         report.reportedUser.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         report.reason.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
-    const matchesType = typeFilter === 'all' || report.type === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
-  });
+  const filteredReports = reports;
 
-  const updateReportStatus = (reportId, newStatus) => {
-    setReports(reports.map(report => 
-      report.id === reportId ? { ...report, status: newStatus } : report
-    ));
+  const updateReportStatus = async (reportId, newStatus) => {
+    const numericId = parseInt(String(reportId).replace('RPT', ''), 10);
+    try {
+      await api.patch(`/admin/reports/${numericId}/`, { status: newStatus });
+      await fetchReports();
+    } catch (e) {
+      console.error('Erreur update report:', e);
+      alert("Impossible de mettre à jour le signalement.");
+    }
   };
 
-  const deleteReport = (reportId) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce signalement ?')) {
-      setReports(reports.filter(report => report.id !== reportId));
+  const deleteReport = async (reportId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce signalement ?')) return;
+    const numericId = parseInt(String(reportId).replace('RPT', ''), 10);
+    try {
+      await api.delete(`/admin/reports/${numericId}/`);
+      await fetchReports();
+    } catch (e) {
+      console.error('Erreur delete report:', e);
+      alert("Impossible de supprimer le signalement.");
     }
   };
 
@@ -210,6 +176,8 @@ const AdminReports = () => {
             Exporter
           </button>
         </div>
+
+        {loading && <div className="mb-4 text-gray-600">Chargement...</div>}
 
         {/* Statistiques rapides */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

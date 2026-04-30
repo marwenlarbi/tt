@@ -1,37 +1,56 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import AdminLayout from './AdminLayout';
 import { Users, FileText, ShoppingCart, TrendingUp, AlertTriangle, Heart, MessageSquare, Activity, Coins, PawPrint, Stethoscope, Calendar, Bell } from "lucide-react";
+import api from '../../services/api';
 
 const AdminDashboard = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('today');
+  const [loading, setLoading] = useState(false);
+  const [dashboardData, setDashboardData] = useState(null);
 
-  // Données du tableau de bord
-  const dashboardData = {
-    users: {
-      total: 1247,
-      active: 892,
-      new: 45,
-      growth: 12.5
-    },
-    posts: {
-      total: 3456,
-      pending: 12,
-      reported: 3,
-      growth: 8.2
-    },
-    products: {
-      total: 89,
-      outOfStock: 5,
-      lowStock: 8,
-      growth: 15.7
-    },
-    orders: {
-      total: 234,
-      pending: 18,
-      completed: 216,
-      revenue: 15674.50
+  const fetchDashboard = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/admin/dashboard/');
+      const d = res.data;
+      // Normalisation minimale pour l'UI existante
+      setDashboardData({
+        users: {
+          total: d.users?.total ?? 0,
+          active: d.users?.active ?? 0,
+          new: 0,
+          growth: 0,
+        },
+        posts: {
+          total: d.posts?.total ?? 0,
+          pending: 0,
+          reported: d.posts?.reports_pending ?? 0,
+          growth: 0,
+        },
+        products: {
+          total: d.products?.total ?? 0,
+          outOfStock: d.products?.outOfStock ?? 0,
+          lowStock: d.products?.lowStock ?? 0,
+          growth: 0,
+        },
+        orders: {
+          total: d.orders?.total ?? 0,
+          pending: d.orders?.pending ?? 0,
+          completed: 0,
+          revenue: d.orders?.revenue ?? 0,
+        }
+      });
+    } catch (e) {
+      console.error('Erreur dashboard admin:', e);
+      setDashboardData(null);
+    } finally {
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchDashboard();
+  }, []);
 
   const recentActivities = [
     {
@@ -227,38 +246,44 @@ const AdminDashboard = () => {
         )}
 
         {/* Statistiques principales */}
+        {loading && (
+          <div className="mb-6 text-gray-600">Chargement…</div>
+        )}
+        {!loading && !dashboardData && (
+          <div className="mb-6 text-red-600">Impossible de charger le dashboard.</div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
             title="Utilisateurs"
-            value={dashboardData.users.total.toLocaleString()}
-            change={dashboardData.users.growth}
+            value={(dashboardData?.users?.total ?? 0).toLocaleString()}
+            change={dashboardData?.users?.growth ?? 0}
             icon={Users}
             color="bg-blue-500"
-            subtitle={`${dashboardData.users.active} actifs`}
+            subtitle={`${dashboardData?.users?.active ?? 0} actifs`}
           />
           <StatCard
             title="Publications"
-            value={dashboardData.posts.total.toLocaleString()}
-            change={dashboardData.posts.growth}
+            value={(dashboardData?.posts?.total ?? 0).toLocaleString()}
+            change={dashboardData?.posts?.growth ?? 0}
             icon={FileText}
             color="bg-green-500"
-            subtitle={`${dashboardData.posts.pending} en attente`}
+            subtitle={`${dashboardData?.posts?.reported ?? 0} signalés`}
           />
           <StatCard
             title="Produits"
-            value={dashboardData.products.total}
-            change={dashboardData.products.growth}
+            value={dashboardData?.products?.total ?? 0}
+            change={dashboardData?.products?.growth ?? 0}
             icon={ShoppingCart}
             color="bg-purple-500"
-            subtitle={`${dashboardData.products.outOfStock} en rupture`}
+            subtitle={`${dashboardData?.products?.outOfStock ?? 0} en rupture`}
           />
           <StatCard
             title="Revenus"
-            value={`${dashboardData.orders.revenue.toLocaleString()} DT`}
+            value={`${(dashboardData?.orders?.revenue ?? 0).toLocaleString()} DT`}
             change={23.1}
             icon={Coins}
             color="bg-orange-500"
-            subtitle={`${dashboardData.orders.total} commandes`}
+            subtitle={`${dashboardData?.orders?.total ?? 0} commandes`}
           />
         </div>
 

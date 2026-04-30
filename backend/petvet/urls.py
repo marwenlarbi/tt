@@ -4,12 +4,15 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/auth/', include('accounts.urls')), 
-    path('/admin_pages/AdminDashboard/', admin.site.urls),
-      # ← c'est cette ligne qui importe accounts.urls
-    # Plus tard tu ajouteras :
-    # path('api/pets/', include('pets.urls')),
+    path("admin/", admin.site.urls),
+    path("api/auth/", include("accounts.urls")),
+    path("api/admin/", include("accounts.admin_urls")),
+    path("api/user/", include("accounts.user_urls")),
+    path("api/posts/", include("posts.urls")),
+    path("api/products/", include("products.urls")),
+    path("api/pets/", include("pets.urls")),
+    path("api/adoption/", include("adoption.urls")),
+    path("api/vet/", include("appointments.urls")),
 ]
 
 if settings.DEBUG:

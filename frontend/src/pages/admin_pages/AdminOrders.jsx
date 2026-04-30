@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import AdminLayout from './AdminLayout';
 import { 
   Search, 
@@ -18,74 +18,37 @@ import {
   Mail,
   Download
 } from 'lucide-react';
+import api from '../../services/api';
 
 const AdminOrders = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Données d'exemple des commandes
-  const [orders, setOrders] = useState([
-    {
-      id: 'CMD001',
-      customerName: 'Jean Dupont',
-      customerEmail: 'jean.dupont@email.com',
-      customerPhone: '06 12 34 56 78',
-      address: '123 Rue de la Paix, 75001 Paris',
-      date: '2024-03-15',
-      status: 'delivered',
-      total: 89.99,
-      items: [
-        { name: 'Croquettes Premium Chat', quantity: 2, price: 24.99 },
-        { name: 'Jouet Souris', quantity: 1, price: 15.99 },
-        { name: 'Litière Naturelle', quantity: 1, price: 24.01 }
-      ]
-    },
-    {
-      id: 'CMD002',
-      customerName: 'Marie Martin',
-      customerEmail: 'marie.martin@email.com',
-      customerPhone: '06 98 76 54 32',
-      address: '456 Avenue des Champs, 69000 Lyon',
-      date: '2024-03-14',
-      status: 'shipping',
-      total: 156.50,
-      items: [
-        { name: 'Collier Anti-Puces Chien', quantity: 1, price: 32.99 },
-        { name: 'Shampoing Naturel', quantity: 2, price: 18.99 },
-        { name: 'Brosse Démêloir', quantity: 1, price: 25.99 }
-      ]
-    },
-    {
-      id: 'CMD003',
-      customerName: 'Pierre Legrand',
-      customerEmail: 'pierre.legrand@email.com',
-      customerPhone: '06 11 22 33 44',
-      address: '789 Boulevard Central, 13000 Marseille',
-      date: '2024-03-13',
-      status: 'processing',
-      total: 67.80,
-      items: [
-        { name: 'Friandises pour Chat', quantity: 3, price: 12.99 },
-        { name: 'Arbre à Chat Compact', quantity: 1, price: 28.83 }
-      ]
-    },
-    {
-      id: 'CMD004',
-      customerName: 'Sophie Blanc',
-      customerEmail: 'sophie.blanc@email.com',
-      customerPhone: '06 55 44 33 22',
-      address: '321 Rue du Commerce, 31000 Toulouse',
-      date: '2024-03-12',
-      status: 'cancelled',
-      total: 43.20,
-      items: [
-        { name: 'Laisse Extensible', quantity: 1, price: 19.99 },
-        { name: 'Gamelle Anti-Glouton', quantity: 1, price: 23.21 }
-      ]
+  const [orders, setOrders] = useState([]);
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (searchTerm) params.q = searchTerm;
+      if (statusFilter !== 'all') params.status = statusFilter;
+      const res = await api.get('/admin/orders/', { params });
+      setOrders(res.data || []);
+    } catch (e) {
+      console.error('Erreur orders admin:', e);
+      setOrders([]);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, statusFilter]);
 
   const statusConfig = {
     processing: { label: 'En traitement', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
@@ -94,18 +57,19 @@ const AdminOrders = () => {
     cancelled: { label: 'Annulée', color: 'bg-red-100 text-red-800', icon: XCircle }
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredOrders = orders;
 
-  const updateOrderStatus = (orderId, newStatus) => {
-    setOrders(orders.map(order => 
-      order.id === orderId ? { ...order, status: newStatus } : order
-    ));
+  const updateOrderStatus = async (orderId, newStatus) => {
+    const order = orders.find((o) => o.id === orderId);
+    const numericId = order?.orderId;
+    if (!numericId) return;
+    try {
+      await api.patch(`/admin/orders/${numericId}/status/`, { status: newStatus });
+      await fetchOrders();
+    } catch (e) {
+      console.error('Erreur update order:', e);
+      alert("Impossible de mettre à jour le statut de la commande.");
+    }
   };
 
   const viewOrderDetails = (order) => {
@@ -229,6 +193,9 @@ const AdminOrders = () => {
 
         {/* Liste des commandes */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+          {loading && (
+            <div className="p-4 text-gray-600">Chargement…</div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
