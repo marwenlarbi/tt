@@ -1,36 +1,28 @@
-version: 1
-
-databases:
-  - name: mydb
-    plan: free
-    databaseName: petvet_db
-
+# Exported from Render on 2026-05-29T03:25:41Z
+version: "1"
 services:
-  - type: web
-    name: petvet-backend
-    runtime: python
-    plan: free
-    region: frankfurt
-
-    buildCommand: |
-      cd backend &&
-      pip install -r requirements.txt &&
+- type: web
+  name: tt-backend
+  runtime: python
+  repo: https://github.com/marwenlarbi/tt
+  plan: free
+  envVars:
+  - key: PYTHON_VERSION
+    sync: false
+  - key: DATABASE_URL
+    sync: false
+  - key: ALLOWED_HOSTS
+    sync: false
+  - key: DEBUG
+    sync: false
+  - key: SECRET_KEY
+    sync: false
+  region: frankfurt
+  buildCommand: |
+    cd backend &&
+    pip install -r requirements.txt &&
       python manage.py collectstatic --noinput --clear
-
-    startCommand: |
-      cd backend &&
-      gunicorn tt.wsgi:application --workers 3 --timeout 120
-
-    envVars:
-      - key: SECRET_KEY
-        generateValue: true
-      - key: DEBUG
-        value: "False"
-      - key: ALLOWED_HOSTS
-        value: "*"
-      - key: DATABASE_URL
-        fromDatabase:
-          name: mydb
-          property: connectionString
-      - key: PYTHON_VERSION
-        value: "3.12"
+  startCommand: |
+    cd backend &&
+    gunicorn tt.wsgi:application --workers 3 --timeout 120
+  autoDeployTrigger: commit
