@@ -1,0 +1,36 @@
+version: 1
+
+# ====================== BASE DE DONNÉES MySQL ======================
+databases:
+  - name: mydb
+    plan: free          # ou "starter" si tu veux plus de ressources
+    databaseName: tt_db
+    user: tt_user
+    ipAllowList: []     # laisse vide pour tout autoriser
+
+# ====================== BACKEND DJANGO ======================
+services:
+  - type: web
+    name: tt-backend
+    runtime: python
+    plan: free
+    region: frankfurt     # ou oregon, singapore... choisis celui près de la Tunisie
+    buildCommand: |
+      pip install -r requirements.txt &&
+      python manage.py collectstatic --noinput
+    startCommand: gunicorn tt.wsgi:application --workers 3 --timeout 120
+    # Change "tt" par le nom de ton dossier Django (celui qui contient wsgi.py)
+
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mydb
+          property: connectionString
+      - key: PYTHON_VERSION
+        value: "3.12"
