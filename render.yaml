@@ -2,25 +2,23 @@ version: 1
 
 # ==================== DATABASE ====================
 databases:
-  -  name: mydb
+  - name: mydb
     plan: free
-    databaseName: tt_db
+    databaseName: petvet_db
 
 # ==================== DJANGO BACKEND ====================
 services:
   - type: web
-    name: tt-backend
+    name: petvet-backend
     runtime: python
     plan: free
     region: frankfurt
 
-    # Build command avec cd dans le dossier backend
     buildCommand: |
       cd backend &&
       pip install -r requirements.txt &&
-        python manage.py collectstatic --noinput --clear
+      python manage.py collectstatic --noinput --clear
 
-    # Start command avec cd dans le dossier backend
     startCommand: |
       cd backend &&
       gunicorn tt.wsgi:application --workers 3 --timeout 120
