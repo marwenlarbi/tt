@@ -9,7 +9,7 @@ databases:
 # ==================== DJANGO BACKEND ====================
 services:
   - type: web
-    name: tt-backend
+    name: petvet
     runtime: python
     plan: free
     region: frankfurt
