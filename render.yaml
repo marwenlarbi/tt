@@ -2,7 +2,7 @@ version: 1
 
 # ==================== DATABASE ====================
 databases:
-  -  name: mydb
+  - name: mydb
     plan: free
     databaseName: tt_db
 
