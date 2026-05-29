@@ -1,54 +1,18 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from '../../components/Layout';
-import { MapPin, LogOut, UserCog, Upload, X, Trash2, User, PawPrint, MessageSquare, Heart, Bell, Eye, Edit3, Camera, Calendar, MoreHorizontal, Share, BookmarkPlus, Loader2, UserPlus, UserCheck, Unlock, Ban } from 'lucide-react';
+import PageSpinner from '../../components/PageSpinner';
+import PostCard, { mapApiPostToFeed } from '../../components/feed/FeedPostCard';
+import SharePostModal from '../../components/feed/SharePostModal';
+import { CHEEBO_OPEN_PRIVATE_CHAT_EVENT } from '../../components/Chat/PrivateChat';
+import { countCommentsInTree } from '../../components/feed/commentUtils';
+import { MapPin, LogOut, UserCog, Upload, Trash2, User, PawPrint, MessageSquare, Heart, Bell, Eye, Edit3, Camera, Calendar, UserPlus, UserCheck, Unlock, Ban } from 'lucide-react';
 import api, { mediaUrl } from '../../services/api';
 
 const getAccessToken = () =>
   localStorage.getItem('access_token') ||
   localStorage.getItem('access') ||
   localStorage.getItem('token');
-
-function mapEmbeddedMine(sp) {
-  if (!sp || !sp.id) return null;
-  const img = sp.image ? mediaUrl(sp.image) : '';
-  const vid = sp.video ? mediaUrl(sp.video) : '';
-  const t = (sp.type || 'text').toLowerCase();
-  const isVideo = t === 'video' && !!vid;
-  const author = sp.author || {};
-  const authorName =
-    `${author.first_name || ''} ${author.last_name || ''}`.trim() || author.email || 'Auteur';
-  return {
-    id: sp.id,
-    authorName,
-    content: sp.content || '',
-    image: !isVideo && img ? img : isVideo && img ? img : null,
-    video: isVideo ? vid : null,
-    type: isVideo ? 'video' : t === 'image' && img ? 'image' : 'text',
-  };
-}
-
-function mapMinePost(p) {
-  const isShare = !!(p.shared_post && p.shared_post.id) || (p.type || '').toLowerCase() === 'share';
-  const embedded = p.shared_post ? mapEmbeddedMine(p.shared_post) : null;
-  const img = !isShare && p.image ? mediaUrl(p.image) : '';
-  const vid = !isShare && p.video ? mediaUrl(p.video) : '';
-  const t = (p.type || 'text').toLowerCase();
-  const isVideo = !isShare && t === 'video' && !!vid;
-  return {
-    id: p.id,
-    content: p.content || '',
-    image: !isVideo && img ? img : isVideo && img ? img : null,
-    video: isVideo ? vid : null,
-    likes: typeof p.like_count === 'number' ? p.like_count : 0,
-    comments: typeof p.comment_count === 'number' ? p.comment_count : 0,
-    shares: 0,
-    createdAt: p.created_at,
-    type: isShare ? 'share' : isVideo ? 'video' : t === 'image' && img ? 'image' : 'text',
-    isShare,
-    embedded,
-  };
-}
 
 function mapPetRow(p) {
   const birth = p.birth_date ? new Date(p.birth_date) : null;
@@ -126,14 +90,17 @@ const Profile = () => {
   const [blockedUsersLoading, setBlockedUsersLoading] = useState(false);
   const [unblockBusyById, setUnblockBusyById] = useState({});
   const [showBlockedUsersModal, setShowBlockedUsersModal] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteAccountBusy, setDeleteAccountBusy] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState(null);
   const [userAnimals, setUserAnimals] = useState([]);
   const [userPosts, setUserPosts] = useState([]);
-  const [openPostOptionsId, setOpenPostOptionsId] = useState(null);
+  const [sharePost, setSharePost] = useState(null);
+  const [shareProfileBusy, setShareProfileBusy] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
   const [editingContent, setEditingContent] = useState('');
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState(null);
-   const [commentsModal, setCommentsModal] = useState({ open: false, postId: null, comments: [], loading: false });
    const [avatarDraftUrl, setAvatarDraftUrl] = useState(null);
    const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
    const [isFollowing, setIsFollowing] = useState(false);
@@ -252,7 +219,7 @@ const Profile = () => {
 
       const postsData = postsRes.data;
       const postsList = Array.isArray(postsData) ? postsData : postsData?.results || [];
-      setUserPosts(postsList.map(mapMinePost));
+      setUserPosts(postsList.map(mapApiPostToFeed));
 
       const petsData = petsRes.data;
       const petsList = Array.isArray(petsData) ? petsData : petsData?.results || [];
@@ -276,9 +243,16 @@ const Profile = () => {
     loadDashboard();
   }, [loadDashboard, viewUserId]);
 
+  const isLoggedIn = Boolean(getAccessToken());
+
+  const sharePostLive = useMemo(() => {
+    if (!sharePost?.id) return null;
+    return userPosts.find((p) => p.id === sharePost.id) || sharePost;
+  }, [sharePost, userPosts]);
+
   const handleDeletePost = useCallback(
     async (post) => {
-      if (!post?.id) return;
+      if (!post?.id || post.fromApi === false) return;
       if (!window.confirm('Supprimer définitivement cette publication ?')) return;
       const token = getAccessToken();
       if (!token) {
@@ -288,6 +262,7 @@ const Profile = () => {
       try {
         await api.delete(`/posts/${post.id}/`);
         setUserPosts((prev) => prev.filter((p) => p.id !== post.id));
+        setSharePost((sp) => (sp && sp.id === post.id ? null : sp));
       } catch (err) {
         console.error('Delete post error', err);
       }
@@ -295,9 +270,161 @@ const Profile = () => {
     [navigate]
   );
 
+  const handleShowUserProfile = useCallback(
+    (userId) => {
+      if (userId != null) navigate(`/users/${userId}`);
+    },
+    [navigate]
+  );
+
+  const handleAuthorFollowChange = useCallback((postId, following) => {
+    setUserPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, isFollowingAuthor: following } : p))
+    );
+  }, []);
+
+  const loadCommentsForPost = useCallback(async (postId) => {
+    try {
+      const { data } = await api.get(`/posts/${postId}/comments/`);
+      const list = Array.isArray(data) ? data : [];
+      setUserPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                comments: list,
+                commentCount: countCommentsInTree(list),
+                commentsLoaded: true,
+              }
+            : p
+        )
+      );
+    } catch {
+      setUserPosts((prev) =>
+        prev.map((p) => (p.id === postId ? { ...p, commentsLoaded: true, comments: p.comments || [] } : p))
+      );
+    }
+  }, []);
+
+  const toggleLike = useCallback(
+    async (postId, fromApi) => {
+      if (!fromApi) return;
+      if (!getAccessToken()) {
+        navigate('/login');
+        return;
+      }
+      try {
+        const { data } = await api.post(`/posts/${postId}/like/`);
+        setUserPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId ? { ...p, liked: data.liked, likes: data.like_count } : p
+          )
+        );
+      } catch {
+        /* ignore */
+      }
+    },
+    [navigate]
+  );
+
+  const toggleSave = useCallback(
+    async (postId, fromApi) => {
+      if (!fromApi) return;
+      if (!getAccessToken()) {
+        navigate('/login');
+        return;
+      }
+      try {
+        const { data } = await api.post(`/posts/${postId}/save/`);
+        setUserPosts((prev) =>
+          prev.map((p) => (p.id === postId ? { ...p, saved: data.saved } : p))
+        );
+      } catch {
+        /* ignore */
+      }
+    },
+    [navigate]
+  );
+
+  const submitComment = useCallback(
+    async (postId, text, fromApi, parentId = null) => {
+      if (!fromApi) return;
+      if (!getAccessToken()) {
+        navigate('/login');
+        throw new Error('auth');
+      }
+      const body = { text };
+      if (parentId != null) body.parent_id = parentId;
+      await api.post(`/posts/${postId}/comments/`, body);
+      await loadCommentsForPost(postId);
+    },
+    [loadCommentsForPost, navigate]
+  );
+
+  const deleteComment = useCallback(
+    async (postId, commentId) => {
+      if (!postId || !commentId) return;
+      if (!window.confirm('Supprimer définitivement ce commentaire ?')) return;
+      if (!getAccessToken()) {
+        navigate('/login');
+        return;
+      }
+      try {
+        await api.delete(`/posts/${postId}/comments/${commentId}/`);
+        await loadCommentsForPost(postId);
+      } catch {
+        /* ignore */
+      }
+    },
+    [navigate, loadCommentsForPost]
+  );
+
+  const editComment = useCallback(
+    async (postId, commentId, text) => {
+      if (!postId || !commentId) return;
+      if (!getAccessToken()) {
+        navigate('/login');
+        throw new Error('auth');
+      }
+      try {
+        await api.patch(`/posts/${postId}/comments/${commentId}/`, { text });
+        await loadCommentsForPost(postId);
+      } catch (err) {
+        throw err;
+      }
+    },
+    [navigate, loadCommentsForPost]
+  );
+
+  const sharePostToProfile = useCallback(
+    async (post) => {
+      if (!post?.id) return;
+      if (!getAccessToken()) {
+        navigate('/login');
+        return;
+      }
+      const sourcePostId = post.originalPost?.id ?? post.id;
+      setShareProfileBusy(true);
+      try {
+        const { data } = await api.post(`/posts/${sourcePostId}/share/`);
+        setSharePost(null);
+        if (data && typeof data === 'object' && data.id != null) {
+          const mapped = mapApiPostToFeed(data);
+          setUserPosts((prev) => [mapped, ...prev.filter((p) => p.id !== mapped.id)]);
+        }
+        await loadDashboard({ quiet: true });
+      } catch {
+        /* ignore */
+      } finally {
+        setShareProfileBusy(false);
+      }
+    },
+    [navigate, loadDashboard]
+  );
+
   const openEditPost = (post) => {
     setEditingPost(post);
-    setEditingContent(post.content || '');
+    setEditingContent(post.phrase || post.content || '');
     setEditError(null);
   };
 
@@ -313,8 +440,19 @@ const Profile = () => {
     setEditError(null);
     try {
       const { data } = await api.patch(`/posts/${editingPost.id}/`, { content: t });
-      const mapped = mapMinePost(data);
-      setUserPosts((prev) => prev.map((p) => (p.id === mapped.id ? mapped : p)));
+      const mapped = mapApiPostToFeed(data);
+      setUserPosts((prev) =>
+        prev.map((p) =>
+          p.id === mapped.id
+            ? {
+                ...mapped,
+                comments: p.comments,
+                commentsLoaded: p.commentsLoaded,
+                commentCount: p.commentCount,
+              }
+            : p
+        )
+      );
       setEditingPost(null);
       setEditingContent('');
     } catch (err) {
@@ -323,51 +461,6 @@ const Profile = () => {
       setEditError(typeof msg === 'string' ? msg : JSON.stringify(msg));
     } finally {
       setEditBusy(false);
-    }
-  };
-
-  const openCommentsModal = async (postId) => {
-    if (!postId) return;
-    setCommentsModal({ open: true, postId, comments: [], loading: true });
-    try {
-      const { data } = await api.get(`/posts/${postId}/comments/`);
-      const list = Array.isArray(data) ? data : [];
-      setCommentsModal({ open: true, postId, comments: list, loading: false });
-    } catch (err) {
-      setCommentsModal({ open: true, postId, comments: [], loading: false });
-    }
-  };
-
-  const closeCommentsModal = () => setCommentsModal({ open: false, postId: null, comments: [], loading: false });
-
-  const deleteComment = async (postId, commentId) => {
-    if (!postId || !commentId) return;
-    if (!window.confirm('Supprimer définitivement ce commentaire ?')) return;
-    const token = getAccessToken();
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-    try {
-      await api.delete(`/posts/${postId}/comments/${commentId}/`);
-      setCommentsModal((prev) => ({ ...prev, comments: (prev.comments || []).filter((c) => c.id !== commentId) }));
-    } catch (err) {
-      console.error('Delete comment error', err);
-    }
-  };
-
-  const editComment = async (postId, commentId, text) => {
-    if (!postId || !commentId) return;
-    const token = getAccessToken();
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-    try {
-      const { data } = await api.patch(`/posts/${postId}/comments/${commentId}/`, { text });
-      setCommentsModal((prev) => ({ ...prev, comments: (prev.comments || []).map((c) => (c.id === data.id ? data : c)) }));
-    } catch (err) {
-      console.error('Edit comment error', err);
     }
   };
 
@@ -422,14 +515,38 @@ const Profile = () => {
     };
   }, [profileImage]);
 
-   const handleLogout = () => {
+   const clearStoredAuth = () => {
      localStorage.removeItem('access_token');
      localStorage.removeItem('refresh_token');
      localStorage.removeItem('access');
      localStorage.removeItem('token');
      localStorage.removeItem('isAdmin');
      localStorage.removeItem('user');
+   };
+
+   const handleLogout = () => {
+     clearStoredAuth();
      navigate('/login');
+   };
+
+   const handleConfirmDeleteAccount = async () => {
+     setDeleteAccountError(null);
+     setDeleteAccountBusy(true);
+     try {
+       await api.delete('/user/profile/');
+       setShowDeleteAccountModal(false);
+       clearStoredAuth();
+       navigate('/login');
+     } catch (err) {
+       const d = err?.response?.data;
+       const msg =
+         (typeof d?.detail === 'string' && d.detail) ||
+         (Array.isArray(d?.detail) && d.detail.join(' ')) ||
+         'Impossible de supprimer le compte. Réessayez plus tard.';
+       setDeleteAccountError(msg);
+     } finally {
+       setDeleteAccountBusy(false);
+     }
    };
 
    const handleFollow = async () => {
@@ -577,9 +694,8 @@ const Profile = () => {
     <Layout>
       <div className="container mx-auto p-4 bg-gray-50 dark:bg-dark-gray text-gray-900 dark:text-dark-text min-h-screen relative transition-colors duration-300">
         {profileLoading && (
-          <div className="flex justify-center items-center py-16 text-gray-600 dark:text-gray-400">
-            <Loader2 className="w-8 h-8 animate-spin mr-2" />
-            <span>Chargement du profil…</span>
+          <div className="flex justify-center py-16">
+            <PageSpinner compact size="md" />
           </div>
         )}
         {!profileLoading && loadError && (
@@ -596,23 +712,24 @@ const Profile = () => {
         )}
          {!profileLoading && !loadError && (
            <>
-         {!isViewingOther && (
-           <div className="flex justify-end mb-4">
-             <button
-               onClick={handleLogout}
-               className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
-             >
-               <LogOut className="w-4 h-4" />
-               <span>Déconnexion</span>
-             </button>
-           </div>
-         )}
         {/* Edit post modal */}
         {editingPost && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-dark-card rounded-lg w-full max-w-md p-6 relative max-h-[90vh] overflow-y-auto">
-              <button onClick={() => setEditingPost(null)} className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 dark:text-gray-400">
-                <X className="w-5 h-5" />
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setEditingPost(null)}
+            role="presentation"
+          >
+            <div
+              className="bg-white dark:bg-dark-card rounded-lg w-full max-w-md p-6 relative max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setEditingPost(null)}
+                className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 text-xl leading-none"
+                aria-label="Fermer"
+              >
+                ×
               </button>
               <h3 className="text-lg font-semibold text-gray-800 dark:text-dark-text mb-3">Modifier la publication</h3>
               <form onSubmit={submitEditPost}>
@@ -623,8 +740,7 @@ const Profile = () => {
                   className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-dark-accent text-gray-800 dark:text-dark-text"
                 />
                 {editError && <p className="text-sm text-red-600 mt-2">{editError}</p>}
-                <div className="mt-4 flex gap-2 justify-end">
-                  <button type="button" onClick={() => setEditingPost(null)} className="px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded text-sm">Annuler</button>
+                <div className="mt-4 flex justify-end">
                   <button type="submit" disabled={editBusy} className="px-4 py-2 bg-primary text-white rounded text-sm">{editBusy ? 'Enregistrement…' : 'Enregistrer'}</button>
                 </div>
               </form>
@@ -632,46 +748,17 @@ const Profile = () => {
           </div>
         )}
 
-        {/* Comments modal */}
-        {commentsModal.open && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-dark-card rounded-lg w-full max-w-md p-4 relative max-h-[90vh] overflow-y-auto">
-              <button onClick={closeCommentsModal} className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 dark:text-gray-400">
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-dark-text mb-3">Commentaires</h3>
-              {commentsModal.loading ? (
-                <div className="text-center py-8">Chargement…</div>
-              ) : (commentsModal.comments || []).length === 0 ? (
-                <div className="text-center py-8 text-gray-500">Aucun commentaire</div>
-              ) : (
-                <div className="space-y-3">
-                  {(commentsModal.comments || []).map((c) => {
-                    const author = c.author || {};
-                    const name = `${author.first_name || ''} ${author.last_name || ''}`.trim() || author.email || 'Utilisateur';
-                    const isMine = author.id && currentUser && String(author.id) === String(currentUser.id);
-                    return (
-                      <div key={c.id} className="p-3 border rounded bg-gray-50 dark:bg-dark-accent border-gray-200 dark:border-gray-600">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="font-medium text-sm text-gray-800 dark:text-dark-text">{name}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{c.text}</div>
-                            <div className="text-xs text-gray-400 mt-1">{c.created_at ? new Date(c.created_at).toLocaleString('fr-FR') : ''}</div>
-                          </div>
-                          {isMine && (
-                            <div className="flex flex-col items-end gap-2 ml-4">
-                              <button onClick={() => editComment(commentsModal.postId, c.id, prompt('Modifier le commentaire', c.text) || c.text)} className="text-sm text-blue-600">Modifier</button>
-                              <button onClick={() => deleteComment(commentsModal.postId, c.id)} className="text-sm text-red-600">Supprimer</button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+        {sharePost && (
+          <SharePostModal
+            post={sharePostLive || sharePost}
+            open
+            onClose={() => setSharePost(null)}
+            saved={!!(sharePostLive || sharePost).saved}
+            onToggleSave={toggleSave}
+            onShareToProfile={sharePostToProfile}
+            profileBusy={shareProfileBusy}
+            isLoggedIn={isLoggedIn}
+          />
         )}
 
          <div className="bg-white dark:bg-dark-card rounded-xl shadow-lg p-6 mb-6 border border-gray-200 dark:border-gray-700">
@@ -767,7 +854,7 @@ const Profile = () => {
                      }`}
                    >
                      {followBusy ? (
-                       <Loader2 className="w-4 h-4 animate-spin" />
+                       <PageSpinner compact size="xs" borderTone="onDark" />
                      ) : isFollowing ? (
                        <>
                          <UserCheck className="w-4 h-4" />
@@ -781,7 +868,20 @@ const Profile = () => {
                      )}
                    </button>
                    <button
-                     onClick={() => navigate(`/chat/${viewUserId}`)}
+                     type="button"
+                     onClick={() =>
+                       window.dispatchEvent(
+                         new CustomEvent(CHEEBO_OPEN_PRIVATE_CHAT_EVENT, {
+                           detail: {
+                             user: {
+                               id: Number(viewUserId),
+                               name: profileData.name,
+                               avatar: profileImage,
+                             },
+                           },
+                         })
+                       )
+                     }
                      className="flex items-center justify-center gap-2 px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
                    >
                      <MessageSquare className="w-4 h-4" />
@@ -812,6 +912,16 @@ const Profile = () => {
                 </button>
               );
             })}
+            {!isViewingOther && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex items-center space-x-2 px-4 py-3 font-medium transition-colors text-sm border-b-2 border-transparent text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 shrink-0"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Déconnexion</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -836,7 +946,7 @@ const Profile = () => {
                   )}
                 </div>
 
-                <div className="space-y-4">
+                <div className="mx-auto w-full max-w-4xl space-y-4">
                   {userPosts.length === 0 ? (
                     <div className="text-center py-8">
                       <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-3" />
@@ -854,135 +964,25 @@ const Profile = () => {
                     </div>
                   ) : (
                   userPosts.map((post) => (
-                    <div key={post.id} className="bg-gray-50 dark:bg-dark-accent rounded-lg p-4 border border-gray-200 dark:border-gray-600">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center">
-                            {profileImage ? (
-                              <img
-                                src={profileImage}
-                                alt="Profil"
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <User className="w-5 h-5 text-white" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-800 dark:text-dark-text text-sm">{profileData.name}</p>
-                            <div className="flex items-center space-x-2 text-xs text-gray-600 dark:text-gray-400">
-                              <span>{formatTimeAgo(post.createdAt)}</span>
-                              <span>{getPostTypeIcon(post.type)}</span>
-                            </div>
-                          </div>
-                         </div>
-                         {!isViewingOther && (
-                           <div className="relative">
-                             <button
-                               onClick={() => setOpenPostOptionsId((id) => (id === post.id ? null : post.id))}
-                               className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                               aria-haspopup="menu"
-                               aria-expanded={openPostOptionsId === post.id}
-                             >
-                               <MoreHorizontal className="w-5 h-5" />
-                             </button>
-                             {openPostOptionsId === post.id && (
-                               <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-dark-card border border-gray-200 dark:border-gray-600 rounded shadow-lg z-20">
-                                 <button
-                                   onClick={() => { setOpenPostOptionsId(null); openEditPost(post); }}
-                                   className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
-                                 >
-                                   <Edit3 className="w-4 h-4" /> Modifier
-                                 </button>
-                                 <button
-                                   onClick={() => { setOpenPostOptionsId(null); handleDeletePost(post); }}
-                                   className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600"
-                                 >
-                                   <Trash2 className="w-4 h-4" /> Supprimer
-                                 </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="mb-3">
-                        {post.isShare ? (
-                          <>
-                            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                              Partage
-                            </p>
-                            {post.content?.trim() ? (
-                              <p className="mb-3 text-gray-800 dark:text-dark-text text-sm leading-relaxed">{post.content}</p>
-                            ) : null}
-                            {post.embedded && (
-                              <button
-                                type="button"
-                                className="w-full rounded-lg border border-gray-200 bg-white p-3 text-left text-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-dark-card dark:hover:bg-gray-800"
-                                onClick={() => navigate(`/home#post-${post.embedded.id}`)}
-                              >
-                                <p className="font-semibold text-gray-800 dark:text-dark-text">{post.embedded.authorName}</p>
-                                {post.embedded.content?.trim() ? (
-                                  <p className="mt-1 line-clamp-3 text-gray-600 dark:text-gray-400">{post.embedded.content}</p>
-                                ) : null}
-                                {post.embedded.video && (
-                                  <div className="mt-2 rounded bg-black">
-                                    <video src={post.embedded.video} controls className="max-h-48 w-full object-contain" playsInline />
-                                  </div>
-                                )}
-                                {!post.embedded.video && post.embedded.image && (
-                                  <img src={post.embedded.image} alt="" className="mt-2 max-h-48 w-full rounded object-cover" />
-                                )}
-                                <p className="mt-2 text-xs font-medium text-primary">Voir la publication originale →</p>
-                              </button>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-gray-800 dark:text-dark-text text-sm leading-relaxed">{post.content}</p>
-                            {post.video && (
-                              <div className="mt-3 rounded-lg overflow-hidden bg-black">
-                                <video
-                                  src={post.video}
-                                  controls
-                                  className="w-full max-h-64 object-contain"
-                                  playsInline
-                                />
-                              </div>
-                            )}
-                            {!post.video && post.image && (
-                              <div className="mt-3 rounded-lg overflow-hidden">
-                                <img
-                                  src={post.image}
-                                  alt=""
-                                  className="w-full h-48 object-cover"
-                                />
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3 border-t border-gray-200 dark:border-gray-600">
-                        <div className="flex items-center space-x-4">
-                          <button className="flex items-center space-x-1 text-gray-600 dark:text-gray-400 hover:text-red-500 transition-colors">
-                            <Heart className="w-4 h-4" />
-                            <span className="text-xs">{post.likes}</span>
-                          </button>
-                          <button onClick={() => openCommentsModal(post.id)} className="flex items-center space-x-1 text-gray-600 dark:text-gray-400 hover:text-blue-500 transition-colors">
-                            <MessageSquare className="w-4 h-4" />
-                            <span className="text-xs">{post.comments}</span>
-                          </button>
-                          <button className="flex items-center space-x-1 text-gray-600 dark:text-gray-400 hover:text-green-500 transition-colors">
-                            <Share className="w-4 h-4" />
-                            <span className="text-xs">{post.shares}</span>
-                          </button>
-                        </div>
-                        <button className="text-gray-600 dark:text-gray-400 hover:text-purple-500 transition-colors">
-                          <BookmarkPlus className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
+                    <PostCard
+                      key={post.id}
+                      post={post}
+                      onOpenShareModal={setSharePost}
+                      onShowUserProfile={handleShowUserProfile}
+                      onToggleLike={toggleLike}
+                      onToggleSave={toggleSave}
+                      onRequestComments={loadCommentsForPost}
+                      onSubmitComment={submitComment}
+                      currentUserId={currentUser?.id ?? null}
+                      onEditPost={(p) => {
+                        setEditError(null);
+                        openEditPost(p);
+                      }}
+                      onDeletePost={handleDeletePost}
+                      onEditComment={editComment}
+                      onDeleteComment={deleteComment}
+                      onAuthorFollowChange={handleAuthorFollowChange}
+                    />
                   ))
                 )}
               </div>
@@ -1100,7 +1100,7 @@ const Profile = () => {
                       <div className="min-w-0 flex-1">
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">{formatTimeAgo(p.createdAt)}</p>
                         <p className="text-sm text-gray-800 dark:text-dark-text line-clamp-2">
-                          {(p.content || '').trim() || '(Publication sans texte)'}
+                          {(p.phrase || '').trim() || '(Publication sans texte)'}
                         </p>
                       </div>
                     </div>
@@ -1171,10 +1171,10 @@ const Profile = () => {
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                 <h4 className="text-base font-semibold text-gray-800 dark:text-dark-text mb-3">Zone de danger</h4>
                 <button
+                  type="button"
                   onClick={() => {
-                    if (window.confirm('Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.')) {
-                      alert('Fonctionnalité de suppression de compte (simulation)');
-                    }
+                    setDeleteAccountError(null);
+                    setShowDeleteAccountModal(true);
                   }}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
                 >
@@ -1186,18 +1186,27 @@ const Profile = () => {
         </div>
 
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
-            <div className="bg-white dark:bg-dark-card rounded-lg w-full max-w-md relative max-h-[90vh] overflow-y-auto scrollbar scrollbar-thumb-custom-purple scrollbar-track-custom-light-track dark:scrollbar-track-custom-dark-track scrollbar-rounded border border-gray-200 dark:border-gray-700">
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
+            onClick={closeModal}
+            role="presentation"
+          >
+            <div
+              className="bg-white dark:bg-dark-card rounded-lg w-full max-w-md relative max-h-[90vh] overflow-y-auto scrollbar scrollbar-thumb-custom-purple scrollbar-track-custom-light-track dark:scrollbar-track-custom-dark-track scrollbar-rounded border border-gray-200 dark:border-gray-700"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-dark-text">
                     Modifier le profil
                   </h3>
                   <button
+                    type="button"
                     onClick={closeModal}
-                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xl leading-none"
+                    aria-label="Fermer"
                   >
-                    <X className="w-5 h-5" />
+                    ×
                   </button>
                 </div>
 
@@ -1330,25 +1339,73 @@ const Profile = () => {
           </div>
         )}
 
+        {showDeleteAccountModal && (
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"
+            onClick={() => !deleteAccountBusy && setShowDeleteAccountModal(false)}
+            role="presentation"
+          >
+            <div
+              className="w-full max-w-md overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-dark-card"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-gray-200 p-4 dark:border-gray-600">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-dark-text">Supprimer le compte</h3>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                  Cette action est définitive : votre profil, publications et données associées seront supprimés.
+                </p>
+                {deleteAccountError && (
+                  <p className="mt-3 text-sm text-red-600 dark:text-red-400">{deleteAccountError}</p>
+                )}
+              </div>
+              <div className="flex justify-end gap-2 p-4">
+                <button
+                  type="button"
+                  disabled={deleteAccountBusy}
+                  onClick={() => setShowDeleteAccountModal(false)}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:text-dark-text dark:hover:bg-gray-700"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteAccountBusy}
+                  onClick={handleConfirmDeleteAccount}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+                >
+                  {deleteAccountBusy ? 'Suppression…' : 'Supprimer définitivement'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showBlockedUsersModal && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
-            <div className="max-h-[90vh] w-full max-w-md overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-dark-card">
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setShowBlockedUsersModal(false)}
+            role="presentation"
+          >
+            <div
+              className="max-h-[90vh] w-full max-w-md overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-dark-card"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-600">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-dark-text">Utilisateurs bloqués</h3>
                 <button
                   type="button"
                   onClick={() => setShowBlockedUsersModal(false)}
-                  className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700 text-xl leading-none"
+                  aria-label="Fermer"
                 >
-                  <X className="h-5 w-5 text-gray-400" />
+                  ×
                 </button>
               </div>
 
               <div className="max-h-[70vh] overflow-y-auto p-4">
                 {blockedUsersLoading ? (
-                  <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600 dark:border-gray-600 dark:bg-dark-accent dark:text-gray-300">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Chargement de la liste…
+                  <div className="flex justify-center rounded-lg border border-gray-200 bg-gray-50 p-6 dark:border-gray-600 dark:bg-dark-accent">
+                    <PageSpinner compact size="md" />
                   </div>
                 ) : blockedUsers.length === 0 ? (
                   <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600 dark:border-gray-600 dark:bg-dark-accent dark:text-gray-300">
@@ -1375,7 +1432,7 @@ const Profile = () => {
                           disabled={!!unblockBusyById[u.id]}
                           className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-60 dark:border-gray-600 dark:text-dark-text dark:hover:bg-gray-600"
                         >
-                          {unblockBusyById[u.id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlock className="h-3.5 w-3.5" />}
+                          {unblockBusyById[u.id] ? <PageSpinner compact size="2xs" /> : <Unlock className="h-3.5 w-3.5" />}
                           Débloquer
                         </button>
                       </div>

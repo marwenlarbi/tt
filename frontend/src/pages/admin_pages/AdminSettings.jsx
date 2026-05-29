@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import AdminLayout from './AdminLayout';
+import api from '../../services/api';
 import { 
   Save, 
   Upload,
@@ -7,13 +8,8 @@ import {
   
   Shield,
   
-  Palette,
   Bell,
   Database,
-  Key,
-  Users,
-  
-  Store,
   
   Eye,
   EyeOff,
@@ -71,15 +67,12 @@ const AdminSettings = () => {
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   const tabs = [
     { id: 'general', label: 'Général', icon: Settings },
     { id: 'security', label: 'Sécurité', icon: Shield },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'moderation', label: 'Modération', icon: Users },
-    { id: 'ecommerce', label: 'E-commerce', icon: Store },
-    { id: 'appearance', label: 'Apparence', icon: Palette },
-    { id: 'integrations', label: 'Intégrations', icon: Key }
+    { id: 'notifications', label: 'Notifications', icon: Bell }
   ];
 
   const handleInputChange = (section, field, value) => {
@@ -92,15 +85,46 @@ const AdminSettings = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Simulation de la sauvegarde
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const payload = {
+        siteName: settings.siteName,
+        siteDescription: settings.siteDescription,
+        siteUrl: settings.siteUrl,
+        adminEmail: settings.adminEmail,
+        twoFactorAuth: settings.twoFactorAuth,
+        sessionTimeout: settings.sessionTimeout,
+        maxLoginAttempts: settings.maxLoginAttempts,
+        passwordMinLength: settings.passwordMinLength,
+        requireSpecialChars: settings.requireSpecialChars,
+        emailNotifications: settings.emailNotifications,
+        weeklyReports: settings.weeklyReports
+      };
+      const response = await api.patch('/admin/settings/', payload);
+      setSettings(prev => ({ ...prev, ...response.data }));
       setSaveMessage('Paramètres sauvegardés avec succès !');
       setTimeout(() => setSaveMessage(''), 3000);
     } catch (error) {
       setSaveMessage('Erreur lors de la sauvegarde');
+      setTimeout(() => setSaveMessage(''), 3000);
     }
     setIsSaving(false);
   };
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      setIsLoadingSettings(true);
+      try {
+        const response = await api.get('/admin/settings/');
+        setSettings(prev => ({ ...prev, ...response.data }));
+      } catch (error) {
+        setSaveMessage('Impossible de charger les paramètres serveur');
+        setTimeout(() => setSaveMessage(''), 3000);
+      } finally {
+        setIsLoadingSettings(false);
+      }
+    };
+
+    loadSettings();
+  }, []);
 
   const handleBackup = async () => {
     try {
@@ -267,38 +291,6 @@ const AdminSettings = () => {
             type="checkbox"
             checked={settings.emailNotifications}
             onChange={(e) => handleInputChange('notifications', 'emailNotifications', e.target.checked)}
-            className="sr-only peer"
-          />
-          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8657ff]"></div>
-        </label>
-      </div>
-      
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-medium text-gray-700">Notifications push</h3>
-          <p className="text-sm text-gray-500">Recevoir les notifications push sur navigateur</p>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={settings.pushNotifications}
-            onChange={(e) => handleInputChange('notifications', 'pushNotifications', e.target.checked)}
-            className="sr-only peer"
-          />
-          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8657ff]"></div>
-        </label>
-      </div>
-      
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-medium text-gray-700">Notifications SMS</h3>
-          <p className="text-sm text-gray-500">Recevoir les notifications par SMS</p>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={settings.smsNotifications}
-            onChange={(e) => handleInputChange('notifications', 'smsNotifications', e.target.checked)}
             className="sr-only peer"
           />
           <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8657ff]"></div>
@@ -683,11 +675,11 @@ const AdminSettings = () => {
             </button>
             <button
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || isLoadingSettings}
               className="flex items-center gap-2 bg-[#8657ff] hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              {isSaving ? 'Enregistrement...' : 'Enregistrer'}
+              {isSaving ? 'Enregistrement...' : isLoadingSettings ? 'Chargement...' : 'Enregistrer'}
             </button>
           </div>
         </div>

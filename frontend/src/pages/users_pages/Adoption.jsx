@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, MapPin, PlusCircle, X, Upload, Edit3, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import Layout from "../../components/Layout";
+import PageSpinner from "../../components/PageSpinner";
 import api, { mediaUrl } from "../../services/api";
 
 // AnimalCard Component
@@ -380,12 +381,21 @@ const AddAnimalForm = ({ onAddAnimal, onClose, initialData = null, onUpdateAnima
 // AnimalDetailsModal Component
 const AnimalDetailsModal = ({ animal, onClose, onEdit, onDelete, currentUser }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white dark:bg-dark-card rounded-lg p-4 max-w-md w-full relative max-h-[90vh] overflow-y-auto scrollbar-rounded">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className="bg-white dark:bg-dark-card rounded-lg p-4 max-w-md w-full relative max-h-[90vh] overflow-y-auto scrollbar-rounded"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Buttons moved to modal footer for better UX */}
         <button
+          type="button"
           onClick={onClose}
           className="absolute top-2 right-2 text-gray-800 dark:text-gray-300 hover:text-gray-600 dark:hover:text-white"
+          aria-label="Fermer"
         >
           <X className="h-6 w-6" />
         </button>
@@ -721,7 +731,7 @@ export default function Adoption() {
               Animaux à adopter
             </h2>
 
-            {loading && <p className="text-gray-800 dark:text-dark-text">Chargement...</p>}
+            {loading && <PageSpinner compact className="!py-8" />}
             {error && <p className="text-red-500 dark:text-red-400">{error}</p>}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -762,12 +772,20 @@ export default function Adoption() {
 
         {/* Modal for adding animal */}
         {addOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white dark:bg-dark-card rounded-lg p-6 max-w-md w-full relative max-h-[90vh] overflow-y-auto scrollbar-rounded">
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"
+            onClick={() => setAddOpen(false)}
+            role="presentation"
+          >
+            <div
+              className="bg-white dark:bg-dark-card rounded-lg p-6 max-w-md w-full relative max-h-[90vh] overflow-y-auto scrollbar-rounded"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
+                type="button"
                 onClick={() => setAddOpen(false)}
                 className="absolute top-3 right-3 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                aria-label="Fermer le formulaire"
+                aria-label="Fermer"
               >
                 <X className="h-6 w-6 text-gray-800 dark:text-dark-text" />
               </button>
@@ -784,12 +802,20 @@ export default function Adoption() {
 
         {/* Modal for editing animal */}
         {editOpen && editAnimal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white dark:bg-dark-card rounded-lg p-6 max-w-md w-full relative max-h-[90vh] overflow-y-auto scrollbar-rounded">
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"
+            onClick={() => setEditOpen(false)}
+            role="presentation"
+          >
+            <div
+              className="bg-white dark:bg-dark-card rounded-lg p-6 max-w-md w-full relative max-h-[90vh] overflow-y-auto scrollbar-rounded"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
+                type="button"
                 onClick={() => setEditOpen(false)}
                 className="absolute top-3 right-3 p-2 rounded bg-primary text-white hover:bg-primary-dark"
-                aria-label="Fermer le formulaire"
+                aria-label="Fermer"
               >
                 <X className="h-6 w-6" />
               </button>

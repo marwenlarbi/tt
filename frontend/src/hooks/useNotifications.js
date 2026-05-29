@@ -10,19 +10,19 @@ function getAccessToken() {
   return t;
 }
 
-const POLL_MS = 30000;
+const POLL_MS = 30000;/*30 secondes*/
 
 /**
  * Notifications JWT : liste, non lus, marquer lu, polling.
  */
 export function useNotifications({ enabled = true } = {}) {
   const [items, setItems] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);/*nombre de notifications non lues*/
+  const [loading, setLoading] = useState(false);/*chargement des notifications*/
+  const [error, setError] = useState(null);/*erreur de chargement des notifications*/
 
   const load = useCallback(async (silent = false) => {
-    if (!getAccessToken()) {
+    if (!getAccessToken()) {/*si pas de token, on vide les notifications*/
       setItems([]);
       setUnreadCount(0);
       return;
@@ -59,11 +59,11 @@ export function useNotifications({ enabled = true } = {}) {
   }, [load]);
 
   useEffect(() => {
-    if (!enabled || !getAccessToken()) return undefined;
+    if (!enabled || !getAccessToken()) return undefined;/*si pas d'activation ou pas de token, on ne charge pas les notifications*/
     load();
     const id = window.setInterval(() => load(true), POLL_MS);
-    return () => window.clearInterval(id);
-  }, [enabled, load]);
+    return () => window.clearInterval(id);/*on nettoie l'intervalle de polling(important pour éviter fuite mémoire*/
+  }, [enabled, load]);/*on charge les notifications toutes les 30 secondes*/
 
-  return { items, unreadCount, loading, error, load, markRead, markAllRead };
+  return { items, unreadCount, loading, error, load, markRead, markAllRead };/*retourne les notifications*/
 }

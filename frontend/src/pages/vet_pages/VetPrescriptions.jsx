@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import VetLayout from './VetLayout';
+import PageSpinner from '../../components/PageSpinner';
 import api from '../../services/api';
 import { Search, Plus, Eye, Edit, Trash2, FileText, Printer} from "lucide-react";
 
@@ -30,9 +31,9 @@ const VetPrescriptions = () => {
         id: p.id,
         date: p.created_at,
         consultationId: p.consultation,
-        petName: p.consultation?.pet_name || '',
-        petSpecies: p.consultation?.pet_species || '',
-        owner: p.consultation?.owner_name || '',
+        petName: p.pet_name ?? p.consultation?.pet_name ?? "",
+        petSpecies: p.pet_species ?? p.consultation?.pet_species ?? "",
+        owner: p.owner_name ?? p.consultation?.owner_name ?? "",
         medication: p.medication || '',
         dosage: p.dosage || '',
         frequency: p.frequency || '',
@@ -141,7 +142,11 @@ const VetPrescriptions = () => {
             <h1 className="text-3xl font-bold mb-2 text-[#8657ff]">Ordonnances</h1>
             <p className="text-gray-600">Gérez et imprimez vos ordonnances médicales</p>
           </div>
-          <button onClick={() => openForm()} className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium">
+          <button
+            type="button"
+            onClick={() => openForm()}
+            className="flex items-center gap-2 bg-[#8657ff] hover:bg-[#7440e8] text-white px-4 py-2 rounded-lg font-medium shadow-md shadow-violet-200/60 transition-colors"
+          >
             <Plus className="w-4 h-4" /> Nouvelle ordonnance
           </button>
         </div>
@@ -162,9 +167,7 @@ const VetPrescriptions = () => {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8657ff]"></div>
-          </div>
+          <PageSpinner />
         ) : (
           <div className="space-y-4">
             {filtered.map((p) => (
@@ -173,11 +176,19 @@ const VetPrescriptions = () => {
                   <div className="flex items-center gap-4">
                     <div className="bg-green-100 p-3 rounded-full"><FileText className="w-6 h-6 text-green-600" /></div>
                     <div>
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-bold text-gray-900">{p.petName} ({p.petSpecies})</h3>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-[#8657ff] mb-0.5">Animal</p>
+                          <h3 className="font-bold text-gray-900">
+                            {p.petName || "—"}
+                            {p.petSpecies ? (
+                              <span className="font-normal text-gray-600"> ({p.petSpecies})</span>
+                            ) : null}
+                          </h3>
+                        </div>
                         {statusBadge(p.status)}
                       </div>
-                      <p className="text-sm text-gray-500">{p.owner} • {new Date(p.date).toLocaleDateString("fr-FR")}</p>
+                      <p className="text-sm text-gray-500 mt-1">{p.owner || "—"} · {new Date(p.date).toLocaleDateString("fr-FR")}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -202,13 +213,29 @@ const VetPrescriptions = () => {
         )}
 
         {showModal && selectedP && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
-              <button onClick={() => setShowModal(false)} className="absolute top-3 right-3 text-gray-500 hover:text-gray-700">✕</button>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowModal(false)}
+            role="presentation"
+          >
+            <div
+              className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="absolute top-3 right-3 text-xl leading-none text-gray-500 hover:text-gray-700"
+                aria-label="Fermer"
+              >
+                ×
+              </button>
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-[#8657ff]">Ordonnance</h2>
-                  <p className="text-gray-500">{new Date(selectedP.date).toLocaleDateString("fr-FR")}</p>
+                  <p className="text-sm font-semibold text-[#8657ff] mb-1">Ordonnance</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-1">Animal</p>
+                  <h2 className="text-2xl font-bold text-gray-900">{selectedP.petName || "—"}</h2>
+                  <p className="text-gray-500 mt-1">{new Date(selectedP.date).toLocaleDateString("fr-FR")}</p>
                 </div>
                 <button onClick={() => handlePrint(selectedP)} className="flex items-center gap-2 bg-[#8657ff] text-white px-4 py-2 rounded-lg">
                   <Printer className="w-4 h-4" /> Imprimer
@@ -229,15 +256,31 @@ const VetPrescriptions = () => {
         )}
 
         {showFormModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
-              <button onClick={() => setShowFormModal(false)} className="absolute top-3 right-3 text-gray-500 hover:text-gray-700">✕</button>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowFormModal(false)}
+            role="presentation"
+          >
+            <div
+              className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setShowFormModal(false)}
+                className="absolute top-3 right-3 text-xl leading-none text-gray-500 hover:text-gray-700"
+                aria-label="Fermer"
+              >
+                ×
+              </button>
               <h3 className="text-xl font-semibold mb-4">{editingP ? "Modifier" : "Nouvelle"} Ordonnance</h3>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <select value={formData.consultation} required onChange={(e) => setFormData({ ...formData, consultation: e.target.value })} className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]">
                   <option value="">Sélectionner une consultation</option>
                   {consultations.map((c) => (
-                    <option key={c.id} value={c.id}>{c.pet_name} - {new Date(c.created_at).toLocaleDateString("fr-FR")}</option>
+                    <option key={c.id} value={c.id}>
+                      Animal : {c.pet_name || "—"} — {new Date(c.created_at).toLocaleDateString("fr-FR")}
+                    </option>
                   ))}
                 </select>
                 <input placeholder="Médicament *" value={formData.medication} required onChange={(e) => setFormData({ ...formData, medication: e.target.value })} className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]" />
@@ -249,9 +292,8 @@ const VetPrescriptions = () => {
                 <textarea placeholder="Instructions pour le propriétaire" value={formData.notes} rows={3}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]" />
-                <div className="flex gap-3 pt-2">
-                  <button type="submit" className="flex-1 bg-[#8657ff] hover:bg-purple-700 text-white py-2 rounded font-medium">{editingP ? "Modifier" : "Créer"}</button>
-                  <button type="button" onClick={() => setShowFormModal(false)} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 rounded font-medium">Annuler</button>
+                <div className="pt-2">
+                  <button type="submit" className="w-full bg-[#8657ff] hover:bg-purple-700 text-white py-2 rounded font-medium">{editingP ? "Modifier" : "Créer"}</button>
                 </div>
               </form>
             </div>

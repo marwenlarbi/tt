@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, UserCheck, MapPin, MessageCircle } from 'lucide-react';
+import { Search, UserCheck, MessageCircle } from 'lucide-react';
 import Layout from '../../components/Layout';
+import PageSpinner from '../../components/PageSpinner';
+import { CHEEBO_OPEN_PRIVATE_CHAT_EVENT } from '../../components/Chat/PrivateChat';
 import api from '../../services/api';
 
 const Following = () => {
   const [following, setFollowing] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [currentUser, setCurrentUser] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
-    setCurrentUser(userData);
     if (userData.id) {
       fetchFollowing(userData.id);
     }
@@ -44,6 +44,14 @@ const Following = () => {
     }
   };
 
+  const openPrivateChat = (user) => {
+    window.dispatchEvent(
+      new CustomEvent(CHEEBO_OPEN_PRIVATE_CHAT_EVENT, {
+        detail: { user: { id: user.id, name: user.name, avatar: user.avatar } },
+      })
+    );
+  };
+
   return (
     <Layout className="bg-gray-100 min-h-screen">
       <div className="bg-white p-4 shadow-md">
@@ -64,9 +72,7 @@ const Following = () => {
 
       <div className="container mx-auto p-4">
         {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8657ff]"></div>
-            </div>
+          <PageSpinner />
         ) : filteredFollowing.length === 0 ? (
           <div className="text-center py-12">
             <UserCheck className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -93,7 +99,11 @@ const Following = () => {
                   >
                     Se désabonner
                   </button>
-                  <button className="flex-1 bg-primary text-white py-2 rounded-lg hover:bg-primary-dark transition-colors flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openPrivateChat(user)}
+                    className="flex-1 bg-primary text-white py-2 rounded-lg hover:bg-primary-dark transition-colors flex items-center justify-center gap-2"
+                  >
                     <MessageCircle className="w-4 h-4" />
                     Message
                   </button>

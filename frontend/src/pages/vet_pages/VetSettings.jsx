@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Save, User, Clock, Shield, Bell, Lock, Eye, EyeOff, Camera } from "lucide-react";
 import VetLayout from './VetLayout';
+import PageSpinner from '../../components/PageSpinner';
 import api, { mediaUrl } from '../../services/api';
 
 
@@ -9,7 +10,6 @@ const VetSettings = () => {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [user, setUser] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
@@ -90,7 +90,6 @@ const fetchSchedule = async () => {
     try {
       const response = await api.get('/user/profile/');
       const userData = response.data;
-      setUser(userData);
       const profileData = userData.profile || {};
       setProfile({
         first_name: userData.first_name || "",
@@ -139,7 +138,17 @@ const fetchSchedule = async () => {
   const handleSaveProfile = async (e) => {
     e && e.preventDefault();
     try {
-      await api.patch('/user/profile/', profile);
+      await api.patch('/user/profile/', {
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        phone: profile.phone,
+        profile: {
+          city: profile.city,
+          address: profile.address,
+          bio: profile.bio,
+        },
+      });
+      await fetchProfile();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (error) {
@@ -205,7 +214,7 @@ const fetchSchedule = async () => {
     return (
       <VetLayout>
         <div className="p-10 flex items-center justify-center min-h-[400px]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8657ff]"></div>
+          <PageSpinner compact />
         </div>
       </VetLayout>
     );
@@ -264,7 +273,7 @@ const fetchSchedule = async () => {
                         className="absolute bottom-0 right-0 bg-[#8657ff] text-white p-1.5 rounded-full hover:bg-purple-700"
                       >
                         {uploading ? (
-                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                          <PageSpinner compact size="3xs" borderTone="onDark" />
                         ) : (
                           <Camera className="w-3 h-3" />
                         )}

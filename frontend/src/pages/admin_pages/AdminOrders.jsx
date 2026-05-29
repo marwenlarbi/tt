@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import AdminLayout from './AdminLayout';
+import PageSpinner from '../../components/PageSpinner';
 import { 
   Search, 
   Filter, 
@@ -58,6 +59,9 @@ const AdminOrders = () => {
   };
 
   const filteredOrders = orders;
+  const deliveredRevenue = orders
+    .filter((o) => o.status === 'delivered')
+    .reduce((sum, o) => sum + Number(o.total || 0), 0);
 
   const updateOrderStatus = async (orderId, newStatus) => {
     const order = orders.find((o) => o.id === orderId);
@@ -150,9 +154,9 @@ const AdminOrders = () => {
           <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Chiffre d'affaires</p>
+                <p className="text-sm font-medium text-gray-600">Chiffre d'affaires (livrées)</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {orders.reduce((sum, order) => sum + order.total, 0).toFixed(2)} DT
+                  {deliveredRevenue.toFixed(2)} DT
                 </p>
               </div>
               <Coins className="h-8 w-8 text-green-600" />
@@ -194,7 +198,9 @@ const AdminOrders = () => {
         {/* Liste des commandes */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100">
           {loading && (
-            <div className="p-4 text-gray-600">Chargement…</div>
+            <div className="flex justify-center p-4">
+              <PageSpinner compact size="md" />
+            </div>
           )}
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -279,14 +285,23 @@ const AdminOrders = () => {
 
         {/* Modal détails commande */}
         {showModal && selectedOrder && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowModal(false)}
+            role="presentation"
+          >
+            <div
+              className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold text-gray-900">Détails de la commande {selectedOrder.id}</h2>
                   <button
+                    type="button"
                     onClick={() => setShowModal(false)}
                     className="text-gray-400 hover:text-gray-600"
+                    aria-label="Fermer"
                   >
                     <XCircle className="w-6 h-6" />
                   </button>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import VetLayout from './VetLayout';
-import api, { mediaUrl } from '../../services/api';
+import PageSpinner from '../../components/PageSpinner';
+import api from '../../services/api';
 
 import {
   Calendar,
@@ -19,6 +20,7 @@ const VetDashboard = () => {
     appointments: { total: 0, pending: 0, done: 0 },
     patients: { total: 0, new: 0 },
     consultations: { total: 0, thisMonth: 0 },
+    reviews: { averageRating: null, count: 0 },
   });
   const [todayAppointments, setTodayAppointments] = useState([]);
   const [recentPatients, setRecentPatients] = useState([]);
@@ -155,7 +157,7 @@ const VetDashboard = () => {
     return (
       <VetLayout>
         <div className="p-10 flex items-center justify-center min-h-[400px]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8657ff]"></div>
+          <PageSpinner compact />
         </div>
       </VetLayout>
     );
@@ -198,8 +200,19 @@ const VetDashboard = () => {
           <StatCard title="Consultations" value={stats.consultations?.total || 0} subtitle={`+${stats.consultations?.thisMonth || 0} ce mois`} icon={Stethoscope} color="bg-green-500" />
           <StatCard
             title="Note moyenne"
-            value="4.8"
-            subtitle="124 avis"
+            value={
+              (stats.reviews?.count ?? 0) > 0 && stats.reviews?.averageRating != null
+                ? Number(stats.reviews.averageRating).toLocaleString("fr-FR", {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  })
+                : "—"
+            }
+            subtitle={
+              (stats.reviews?.count ?? 0) > 0
+                ? `${stats.reviews.count} avis`
+                : "Aucun avis pour l’instant"
+            }
             icon={Star}
             color="bg-yellow-500"
           />

@@ -148,7 +148,7 @@ export default function AdminProduct() {
           >
             {/* ... same inputs ... */}
             <input type="text" placeholder="Nom" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#8657ff]" required />
-            <input type="number" placeholder="Prix (€)" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#8657ff]" required />
+            <input type="number" placeholder="Prix (DT)" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#8657ff]" required />
             {/* ... other inputs ... */}
             <textarea placeholder="Description" rows="3" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="border rounded px-3 py-2 col-span-1 md:col-span-2 focus:outline-none focus:ring-2 focus:ring-[#8657ff] resize-none" required />
             {/* Buttons */}
@@ -173,8 +173,8 @@ export default function AdminProduct() {
               <thead className="bg-gray-100">
                 <tr>
                   <th className="py-3 px-5 text-left font-semibold">Nom</th>
-                  <th className="py-3 px-5 text-left font-semibold">Prix (€)</th>
-                  <th className="py-3 px-5 text-left font-semibold">Ancien Prix (€)</th>
+                  <th className="py-3 px-5 text-left font-semibold">Prix (DT)</th>
+                  <th className="py-3 px-5 text-left font-semibold">Ancien Prix (DT)</th>
                   <th className="py-3 px-5 text-left font-semibold">Stock</th>
                   <th className="py-3 px-5 text-left font-semibold">Catégorie</th>
                   <th className="py-3 px-5 text-left font-semibold">Actions</th>

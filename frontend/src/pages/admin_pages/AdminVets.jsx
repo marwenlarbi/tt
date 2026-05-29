@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
+import PageSpinner from '../../components/PageSpinner';
 import api from '../../services/api';
+import {
+  formatVetScheduleHours,
+  getVetScheduleEntriesSorted,
+  vetScheduleDayLabelFr,
+} from '../../utils/vetScheduleDisplay';
 
 import { 
   Search, 
@@ -219,6 +225,9 @@ const AdminVets = () => {
       first_name,
       last_name,
       status: formData.status,
+      city: formData.city,
+      address: formData.address,
+      specialty: formData.specialty,
     };
 
     try {
@@ -310,8 +319,15 @@ const AdminVets = () => {
   const renderVetModal = () => {
     if (!selectedVet) return null;
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg w-full max-w-4xl p-6 relative max-h-[90vh] overflow-y-auto">
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        onClick={closeModal}
+        role="presentation"
+      >
+        <div
+          className="bg-white rounded-lg w-full max-w-4xl p-6 relative max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             type="button"
             onClick={closeModal}
@@ -408,10 +424,10 @@ const AdminVets = () => {
               <div className="bg-gray-50 p-4 rounded-lg mb-4">
                 <h3 className="font-semibold mb-2">Horaires</h3>
                 <div className="space-y-2">
-                  {Object.entries(selectedVet.schedule).map(([day, hours]) => (
+                  {getVetScheduleEntriesSorted(selectedVet.schedule || {}).map(([day, hours]) => (
                     <div key={day} className="flex justify-between text-sm">
-                      <span>{day}</span>
-                      <span>{hours}</span>
+                      <span>{vetScheduleDayLabelFr(day)}</span>
+                      <span>{formatVetScheduleHours(hours)}</span>
                     </div>
                   ))}
                 </div>
@@ -489,13 +505,22 @@ const AdminVets = () => {
 
   const renderAddVetModal = () => {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        onClick={() => setShowAddModal(false)}
+        role="presentation"
+      >
+        <div
+          className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
+            type="button"
             onClick={() => setShowAddModal(false)}
-            className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+            className="absolute top-3 right-3 text-xl leading-none text-gray-500 hover:text-gray-700"
+            aria-label="Fermer"
           >
-            ✕
+            ×
           </button>
           
           <h3 className="text-xl font-semibold mb-4">
@@ -579,19 +604,12 @@ const AdminVets = () => {
               <option value="rejected">Rejeté</option>
             </select>
             
-            <div className="col-span-2 flex gap-3 pt-4">
+            <div className="col-span-2 pt-4">
               <button
                 type="submit"
-                className="flex-1 bg-[#8657ff] hover:bg-purple-700 text-white py-2 px-4 rounded font-medium"
+                className="w-full bg-[#8657ff] hover:bg-purple-700 text-white py-2 px-4 rounded font-medium"
               >
                 {editingVet ? 'Modifier' : 'Ajouter'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAddModal(false)}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded font-medium"
-              >
-                Annuler
               </button>
             </div>
           </form>
@@ -612,7 +630,7 @@ const AdminVets = () => {
           <div className="flex gap-3">
             <button
               onClick={handleAddVet}
-              className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium"
+              className="flex items-center gap-2 bg-[#8657ff] hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium"
             >
               <Plus className="w-4 h-4" />
               Ajouter vétérinaire
@@ -627,7 +645,11 @@ const AdminVets = () => {
           </div>
         </div>
 
-        {loading && <div className="mb-4 text-gray-600">Chargement...</div>}
+        {loading && (
+          <div className="mb-4 flex justify-start">
+            <PageSpinner compact size="md" />
+          </div>
+        )}
 
         {/* Filtres et recherche */}
         <div className="bg-white rounded-xl p-6 shadow-md mb-6">

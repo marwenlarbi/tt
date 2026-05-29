@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import AdminLayout from './AdminLayout';
+import PageSpinner from '../../components/PageSpinner';
 import { Download, Edit, Plus, Search, Trash2, Image as ImageIcon } from 'lucide-react';
 import api from '../../services/api';
 
@@ -200,7 +201,7 @@ const AdminProduct = () => {
             <p className="text-gray-600">Gerez le catalogue produits</p>
           </div>
           <div className="flex gap-3">
-            <button onClick={handleAddProduct} className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium">
+            <button onClick={handleAddProduct} className="flex items-center gap-2 bg-[#8657ff] hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium">
               <Plus className="w-4 h-4" />
               Ajouter produit
             </button>
@@ -227,7 +228,11 @@ const AdminProduct = () => {
         </div>
 
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          {loading && <div className="p-4 text-gray-600">Chargement...</div>}
+          {loading && (
+            <div className="flex justify-center p-4">
+              <PageSpinner compact size="md" />
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -259,7 +264,7 @@ const AdminProduct = () => {
                         </div>
                       </td>
                       <td className="p-4 text-sm text-gray-600">{product.category}</td>
-                    <td className="p-4 text-sm text-gray-600">{Number(product.price || 0).toFixed(2)} EUR</td>
+                    <td className="p-4 text-sm text-gray-600">{Number(product.price || 0).toFixed(2)} DT</td>
                       <td className="p-4 text-sm text-gray-600">{product.stock}</td>
                       <td className="p-4">{getStatusBadge(product.status)}</td>
                       <td className="p-4">
@@ -279,9 +284,20 @@ const AdminProduct = () => {
         </div>
 
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-full max-w-md p-6 relative">
-              <button onClick={() => setShowModal(false)} className="absolute top-3 right-3 text-gray-500 hover:text-gray-700">x</button>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowModal(false)}
+            role="presentation"
+          >
+            <div className="bg-white rounded-lg w-full max-w-md p-6 relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="absolute top-3 right-3 text-xl leading-none text-gray-500 hover:text-gray-700"
+                aria-label="Fermer"
+              >
+                ×
+              </button>
               <h3 className="text-xl font-semibold mb-4">{editingProduct ? 'Modifier produit' : 'Ajouter produit'}</h3>
               <form onSubmit={handleSubmit} className="space-y-3">
                 <input type="text" placeholder="Nom du produit" value={formData.name} onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))} className="w-full p-2 border rounded" required />
@@ -326,9 +342,8 @@ const AdminProduct = () => {
                     <span className="text-sm text-gray-600 truncate">{imageFile ? imageFile.name : 'Image actuelle'}</span>
                 </div>
                 )}
-                <div className="flex gap-3 pt-2">
-                  <button type="submit" disabled={saving} className="flex-1 bg-[#8657ff] hover:bg-purple-700 text-white py-2 px-4 rounded font-medium disabled:opacity-70">{saving ? 'Enregistrement...' : editingProduct ? 'Modifier' : 'Ajouter'}</button>
-                  <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded font-medium">Annuler</button>
+                <div className="pt-2">
+                  <button type="submit" disabled={saving} className="w-full bg-[#8657ff] hover:bg-purple-700 text-white py-2 px-4 rounded font-medium disabled:opacity-70">{saving ? 'Enregistrement...' : editingProduct ? 'Modifier' : 'Ajouter'}</button>
                 </div>
               </form>
             </div>

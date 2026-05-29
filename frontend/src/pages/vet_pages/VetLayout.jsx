@@ -13,12 +13,14 @@ import {
   Stethoscope,
   ClipboardList,
 } from "lucide-react";
+import NotificationPanel from "../../components/NotificationPanel";
 
 const VetLayout = ({ children }) => {
   const location = useLocation();
 
   const menuItems = [
     { path: "/vet/dashboard",     icon: LayoutDashboard, label: "Tableau de bord", emoji: "📊" },
+    { path: "/vet/conseils",      icon: LayoutDashboard, label: "Conseils",        emoji: "💡" },
     { path: "/vet/appointments",  icon: Calendar,        label: "Rendez-vous",     emoji: "📅" },
     { path: "/vet/patients",      icon: Users,           label: "Mes patients",    emoji: "🐾" },
     { path: "/vet/consultations", icon: ClipboardList,   label: "Consultations",   emoji: "🩺" },
@@ -32,12 +34,15 @@ const VetLayout = ({ children }) => {
     <div className="flex min-h-screen bg-gray-100">
       {/* Sidebar */}
       <aside className="w-64 bg-[#8657ff] text-white p-6 shadow-lg flex flex-col">
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-1">
-            <Stethoscope className="w-7 h-7 text-white" />
-            <h2 className="text-2xl font-bold">Vet Panel</h2>
+        <div className="mb-8 flex items-start justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Stethoscope className="w-7 h-7 text-white" />
+              <h2 className="text-2xl font-bold">Vet Panel</h2>
+            </div>
+            <p className="text-green-100 text-sm mt-1">Espace Vétérinaire</p>
           </div>
-          <p className="text-green-100 text-sm mt-1">Espace Vétérinaire</p>
+          <NotificationPanel enabled bellButtonClassName="p-2 rounded-lg bg-white/15 hover:bg-white/25 transition-colors relative shrink-0" />
         </div>
 
         <nav className="space-y-2 flex-1">

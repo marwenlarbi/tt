@@ -291,13 +291,22 @@ const AdminReports = () => {
     };
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg w-full max-w-4xl p-6 relative max-h-[90vh] overflow-y-auto">
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        onClick={closeModal}
+        role="presentation"
+      >
+        <div
+          className="bg-white rounded-lg w-full max-w-4xl p-6 relative max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
+            type="button"
             onClick={closeModal}
-            className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+            className="absolute top-3 right-3 text-xl leading-none text-gray-500 hover:text-gray-700"
+            aria-label="Fermer"
           >
-            ✕
+            ×
           </button>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

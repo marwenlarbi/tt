@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, UserCheck, Loader } from 'lucide-react';
+import { UserPlus, UserCheck } from 'lucide-react';
+import PageSpinner from './PageSpinner';
 import api from '../services/api';
 
 const FollowButton = ({
@@ -101,7 +102,7 @@ const FollowButton = ({
   if (loading) {
     return (
       <button type="button" disabled style={btnStyle} className={`${btnClass} cursor-wait opacity-80`}>
-        <Loader className="w-4 h-4 animate-spin shrink-0" />
+        <PageSpinner compact size="xs" borderTone="onDark" className="shrink-0" />
         <span className="hidden sm:inline">…</span>
       </button>
     );

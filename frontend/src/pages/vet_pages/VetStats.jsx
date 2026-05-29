@@ -1,7 +1,17 @@
-import React, { useState, useEffect } from "react";
-import VetLayout from './VetLayout';
-import api from '../../services/api';
-import { TrendingUp, TrendingDown, Calendar, Stethoscope, Star, PawPrint } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import VetLayout from "./VetLayout";
+import PageSpinner from "../../components/PageSpinner";
+import api from "../../services/api";
+import { Calendar, Stethoscope, Star, PawPrint } from "lucide-react";
+
+const SPECIES_BAR_COLORS = [
+  "bg-blue-400",
+  "bg-purple-400",
+  "bg-green-400",
+  "bg-amber-400",
+  "bg-pink-400",
+  "bg-gray-400",
+];
 
 const VetStats = () => {
   const [period, setPeriod] = useState("month");
@@ -9,58 +19,82 @@ const VetStats = () => {
   const [stats, setStats] = useState({
     appointments: { total: 0, pending: 0, done: 0 },
     patients: { total: 0, new: 0 },
-    consultations: { total: 0, thisMonth: 0 },
+    consultations: {
+      total: 0,
+      thisMonth: 0,
+      recordsInPeriod: 0,
+      appointmentsWithoutConsultRecord: 0,
+    },
+    analytics: {
+      monthlyActivity: [],
+      patientsBySpecies: [],
+      topDiagnoses: [],
+      recentReviews: [],
+    },
   });
 
-  useEffect(() => {
-    fetchStats();
-  }, [period]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await api.get('/vet/dashboard/stats/');
-      setStats(response.data);
+      const response = await api.get("/vet/dashboard/stats/", { params: { period } });
+      const data = response.data || {};
+      setStats({
+        ...data,
+        analytics: {
+          monthlyActivity: data.analytics?.monthlyActivity ?? [],
+          patientsBySpecies: data.analytics?.patientsBySpecies ?? [],
+          topDiagnoses: data.analytics?.topDiagnoses ?? [],
+          recentReviews: data.analytics?.recentReviews ?? [],
+        },
+      });
     } catch (error) {
       console.error("Error fetching stats:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [period]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const statsData = [
-    { label: "Consultations", value: stats.consultations?.thisMonth || 0, change: 0, unit: "", icon: Stethoscope, color: "bg-blue-500" },
-    { label: "Nouveaux patients", value: stats.patients?.new || 0, change: 0, unit: "", icon: PawPrint, color: "bg-purple-500" },
-    { label: "Rendez-vous", value: stats.appointments?.total || 0, change: 0, unit: "", icon: Calendar, color: "bg-green-500" },
-    { label: "Patient total", value: stats.patients?.total || 0, change: 0, unit: "", icon: Star, color: "bg-yellow-500" },
+    {
+      label: "Consultations",
+      value: stats.consultations?.inPeriod ?? stats.consultations?.thisMonth ?? 0,
+      icon: Stethoscope,
+      color: "bg-blue-500",
+      hint: "Fiches + RDV sans fiche (période)",
+    },
+    {
+      label: "Nouveaux patients",
+      value: stats.patients?.newInPeriod ?? stats.patients?.new ?? 0,
+      icon: PawPrint,
+      color: "bg-purple-500",
+      hint: "Animaux nouveaux sur vos RDV",
+    },
+    {
+      label: "Rendez-vous",
+      value: stats.appointments?.inPeriod ?? stats.appointments?.total ?? 0,
+      icon: Calendar,
+      color: "bg-green-500",
+      hint: "RDV planifiés sur la période (tous statuts sauf annulé)",
+    },
+    {
+      label: "Patients total",
+      value: stats.patients?.total || 0,
+      icon: Star,
+      color: "bg-yellow-500",
+      hint: "Animaux distincts avec au moins un RDV chez vous",
+    },
   ];
 
-  const consultationsBySpecies = [
-    { species: "Chien", count: 45, percent: 58, color: "bg-blue-400" },
-    { species: "Chat", count: 22, percent: 28, color: "bg-purple-400" },
-    { species: "Lapin", count: 6, percent: 8, color: "bg-green-400" },
-    { species: "Autres", count: 5, percent: 6, color: "bg-gray-400" },
-  ];
+  const monthly = stats.analytics?.monthlyActivity ?? [];
+  const maxBar = Math.max(...monthly.map((m) => Number(m.value) || 0), 1);
 
-  const consultationsByMonth = [
-    { month: "Sep", value: 22 },
-    { month: "Oct", value: 27 },
-    { month: "Nov", value: 18 },
-    { month: "Déc", value: 15 },
-    { month: "Jan", value: 25 },
-    { month: "Fév", value: 24 },
-    { month: "Mar", value: stats.consultations?.thisMonth || 28 },
-  ];
-
-  const topDiagnoses = [
-    { name: "Vaccination annuelle", count: 18, percent: 23 },
-    { name: "Consultation générale", count: 15, percent: 19 },
-    { name: "Suivi post-opératoire", count: 9, percent: 12 },
-    { name: "Dermatologie", count: 8, percent: 10 },
-    { name: "Problèmes digestifs", count: 7, percent: 9 },
-  ];
-
-  const maxBar = Math.max(...consultationsByMonth.map((m) => m.value));
+  const species = stats.analytics?.patientsBySpecies ?? [];
+  const diagnoses = stats.analytics?.topDiagnoses ?? [];
+  const reviews = stats.analytics?.recentReviews ?? [];
 
   return (
     <VetLayout>
@@ -69,9 +103,24 @@ const VetStats = () => {
           <div>
             <h1 className="text-3xl font-bold mb-2 text-[#8657ff]">Statistiques</h1>
             <p className="text-gray-600">Aperçu de vos performances et activités</p>
+            {stats.period && (
+              <p className="text-sm text-gray-500 mt-1">
+                Période sélectionnée :{" "}
+                {period === "week"
+                  ? "7 derniers jours"
+                  : period === "month"
+                    ? "mois en cours"
+                    : period === "quarter"
+                      ? "trimestre en cours"
+                      : "année en cours"}
+              </p>
+            )}
           </div>
-          <select value={period} onChange={(e) => setPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8657ff]">
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8657ff]"
+          >
             <option value="week">Cette semaine</option>
             <option value="month">Ce mois</option>
             <option value="quarter">Ce trimestre</option>
@@ -80,27 +129,31 @@ const VetStats = () => {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8657ff]"></div>
-          </div>
+          <PageSpinner />
         ) : (
           <>
+            {(stats.consultations?.appointmentsWithoutConsultRecord > 0 ||
+              stats.consultations?.recordsInPeriod > 0) && (
+              <p className="text-sm text-gray-500 mb-4 max-w-3xl">
+                La carte « Consultations » additionne les{" "}
+                <strong>fiches consultation</strong> créées sur la période et les{" "}
+                <strong>rendez-vous</strong> (hors annulés) sans fiche liée — ainsi les RDV
+                apparaissent même sans ouvrir une consultation dans l’app.
+              </p>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {statsData.map((s) => (
                 <div key={s.label} className="bg-white rounded-xl p-6 shadow-md">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-gray-600 text-sm font-medium">{s.label}</p>
-                      <p className="text-3xl font-bold text-gray-900">{s.value}{s.unit}</p>
-                      <div className="flex items-center mt-2 gap-1">
-                        {s.change >= 0 ? <TrendingUp className="w-4 h-4 text-green-500" /> : <TrendingDown className="w-4 h-4 text-red-500" />}
-                        <span className={`text-sm font-medium ${s.change >= 0 ? "text-green-500" : "text-red-500"}`}>
-                          {s.change >= 0 ? "+" : ""}{s.change}{s.unit}
-                        </span>
-                        <span className="text-gray-400 text-xs">vs période préc.</span>
-                      </div>
+                      <p className="text-3xl font-bold text-gray-900">{s.value}</p>
+                      <p className="text-xs text-gray-400 mt-2 leading-snug">{s.hint}</p>
                     </div>
-                    <div className={`p-3 rounded-full ${s.color}`}><s.icon className="w-8 h-8 text-white" /></div>
+                    <div className={`p-3 rounded-full shrink-0 ${s.color}`}>
+                      <s.icon className="w-8 h-8 text-white" />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -108,67 +161,149 @@ const VetStats = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               <div className="bg-white rounded-xl p-6 shadow-md">
-                <h3 className="text-lg font-semibold mb-6 text-gray-800">Consultations par mois</h3>
-                <div className="flex items-end gap-3 h-40">
-                  {consultationsByMonth.map((m) => (
-                    <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
-                      <span className="text-xs text-gray-500 font-medium">{m.value}</span>
+                <h3 className="text-lg font-semibold text-gray-800">Consultations par mois</h3>
+                <p className="text-xs text-gray-500 mb-6">
+                  7 derniers mois — même calcul que la carte « Consultations » (fiches + RDV sans fiche).
+                </p>
+                {monthly.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-10">Aucune donnée</p>
+                ) : (
+                  <div className="flex items-end gap-2 h-44">
+                    {monthly.map((m) => (
                       <div
-                        className="w-full rounded-t-md bg-[#8657ff] transition-all hover:opacity-80"
-                        style={{ height: `${(m.value / (maxBar || 1)) * 100}%`, minHeight: "8px" }}
-                      />
-                      <span className="text-xs text-gray-500">{m.month}</span>
-                    </div>
-                  ))}
-                </div>
+                        key={m.yearMonth || m.label}
+                        className="flex-1 flex flex-col items-center gap-1 min-w-0"
+                        title={m.yearMonth ? `${m.yearMonth}` : undefined}
+                      >
+                        <span className="text-xs text-gray-500 font-medium">{m.value}</span>
+                        <div
+                          className="w-full rounded-t-md bg-[#8657ff] transition-all hover:opacity-80"
+                          style={{
+                            height: `${((Number(m.value) || 0) / maxBar) * 100}%`,
+                            minHeight: "6px",
+                          }}
+                        />
+                        <span className="text-xs text-gray-500 truncate w-full text-center">
+                          {m.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="bg-white rounded-xl p-6 shadow-md">
-                <h3 className="text-lg font-semibold mb-6 text-gray-800">Patients par espèce</h3>
-                <div className="space-y-4">
-                  {consultationsBySpecies.map((s) => (
-                    <div key={s.species}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="font-medium">{s.species}</span>
-                        <span className="text-gray-500">{s.count} ({s.percent}%)</span>
+                <h3 className="text-lg font-semibold text-gray-800">Patients par espèce</h3>
+                <p className="text-xs text-gray-500 mb-6">
+                  Répartition des animaux ayant eu au moins un RDV avec vous.
+                </p>
+                {species.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-10">Aucun patient enregistré</p>
+                ) : (
+                  <div className="space-y-4">
+                    {species.map((row, idx) => (
+                      <div key={row.species}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="font-medium truncate pr-2">{row.species}</span>
+                          <span className="text-gray-500 shrink-0">
+                            {row.count} ({row.percent}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-3">
+                          <div
+                            className={`${
+                              SPECIES_BAR_COLORS[idx % SPECIES_BAR_COLORS.length]
+                            } h-3 rounded-full transition-all`}
+                            style={{ width: `${Math.min(row.percent, 100)}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-100 rounded-full h-3">
-                        <div className={`${s.color} h-3 rounded-full transition-all`} style={{ width: `${s.percent}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-xl p-6 shadow-md">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800">Diagnostics fréquents</h3>
-                <div className="space-y-3">
-                  {topDiagnoses.map((d, i) => (
-                    <div key={d.name} className="flex items-center gap-3">
-                      <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold">{i + 1}</div>
-                      <div className="flex-1">
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>{d.name}</span>
-                          <span className="text-gray-500">{d.count}</span>
+                <h3 className="text-lg font-semibold mb-1 text-gray-800">Motifs / diagnostics (texte saisi)</h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  Basé sur le champ « diagnostic » de vos fiches consultation (textes identiques regroupés).
+                </p>
+                {diagnoses.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-10">
+                    Aucun diagnostic renseigné pour l’instant
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {diagnoses.map((d, i) => (
+                      <div key={`${d.label}-${i}`} className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold shrink-0">
+                          {i + 1}
                         </div>
-                        <div className="w-full bg-gray-100 rounded-full h-2">
-                          <div className="bg-[#8657ff] h-2 rounded-full" style={{ width: `${d.percent}%` }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between text-sm mb-1 gap-2">
+                            <span className="truncate" title={d.label}>
+                              {d.label}
+                            </span>
+                            <span className="text-gray-500 shrink-0">{d.count}</span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-2">
+                            <div
+                              className="bg-[#8657ff] h-2 rounded-full"
+                              style={{ width: `${Math.min(d.percent, 100)}%` }}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="bg-white rounded-xl p-6 shadow-md">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800">Avis récents</h3>
-                <div className="space-y-4">
-                  <div className="text-center text-gray-400 py-8">
+                <h3 className="text-lg font-semibold mb-1 text-gray-800">Avis récents</h3>
+                <p className="text-xs text-gray-500 mb-4">Avis clients sur votre profil vétérinaire.</p>
+                {reviews.length === 0 ? (
+                  <div className="text-center text-gray-400 py-10">
                     <p className="text-sm">Aucun avis pour le moment</p>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
+                    {reviews.map((r) => (
+                      <div
+                        key={r.id}
+                        className="border border-gray-100 rounded-lg p-3 bg-gray-50/80"
+                      >
+                        <div className="flex justify-between items-start gap-2 mb-1">
+                          <span className="text-sm font-medium text-gray-900 truncate">
+                            {r.authorName}
+                          </span>
+                          <span className="text-xs text-amber-600 font-semibold shrink-0">
+                            {"★".repeat(r.rating)}
+                            <span className="text-gray-400 ml-1">({r.rating}/5)</span>
+                          </span>
+                        </div>
+                        {r.comment ? (
+                          <p className="text-sm text-gray-600 line-clamp-4">{r.comment}</p>
+                        ) : (
+                          <p className="text-xs text-gray-400 italic">Sans commentaire</p>
+                        )}
+                        {r.createdAt && (
+                          <p className="text-xs text-gray-400 mt-2">
+                            {new Date(r.createdAt).toLocaleString("fr-FR", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </>

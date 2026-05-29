@@ -2,18 +2,17 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Users, MessageCircle } from 'lucide-react';
 import Layout from '../../components/Layout';
+import PageSpinner from '../../components/PageSpinner';
 import api from '../../services/api';
 
 const Followers = () => {
   const [followers, setFollowers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [currentUser, setCurrentUser] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
-    setCurrentUser(userData);
     if (userData.id) {
       fetchFollowers(userData.id);
     }
@@ -36,18 +35,18 @@ const Followers = () => {
   );
 
   return (
-    <Layout className="bg-gray-100 min-h-screen">
-      <div className="bg-white p-4 shadow-md">
+    <Layout>
+      <div className="border-b border-gray-200 bg-white p-4 shadow-md dark:border-gray-700 dark:bg-dark-card">
         <div className="container mx-auto">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Followers</h2>
+          <h2 className="mb-4 text-2xl font-bold text-gray-800 dark:text-dark-text">Followers</h2>
           <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400 dark:text-gray-500" />
             <input
               type="text"
               placeholder="Rechercher dans vos followers..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
+              className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-600 dark:bg-dark-accent dark:text-dark-text dark:placeholder:text-gray-500"
             />
           </div>
         </div>
@@ -55,31 +54,39 @@ const Followers = () => {
 
       <div className="container mx-auto p-4">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8657ff]"></div>
-          </div>
+          <PageSpinner />
         ) : filteredFollowers.length === 0 ? (
-          <div className="text-center py-12">
-            <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">Vous n'avez pas encore de followers</p>
+          <div className="py-12 text-center">
+            <Users className="mx-auto mb-4 h-16 w-16 text-gray-300 dark:text-gray-600" />
+            <p className="text-gray-500 dark:text-gray-400">Vous n'avez pas encore de followers</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
              {filteredFollowers.map((user) => (
-               <div key={user.id} className="bg-white rounded-lg shadow-md p-4">
-                 <div className="flex items-center gap-4 cursor-pointer" onClick={() => navigate(`/users/${user.id}`)}>
+               <div
+                 key={user.id}
+                 className="rounded-lg border border-gray-200 bg-white p-4 shadow-md dark:border-gray-600 dark:bg-dark-accent"
+               >
+                 <div
+                   className="flex cursor-pointer items-center gap-4"
+                   onClick={() => navigate(`/users/${user.id}`)}
+                   role="presentation"
+                 >
                   <img
                     src={user.avatar}
                     alt={user.name}
-                    className="w-16 h-16 rounded-full object-cover"
+                    className="h-16 w-16 rounded-full object-cover"
                   />
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-800">{user.name}</h3>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-gray-800 dark:text-dark-text">{user.name}</h3>
                   </div>
                 </div>
                 <div className="mt-4">
-                  <button className="w-full bg-primary text-white py-2 rounded-lg hover:bg-primary-dark transition-colors flex items-center justify-center gap-2">
-                    <MessageCircle className="w-4 h-4" />
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2 text-white transition-colors hover:bg-primary-dark"
+                  >
+                    <MessageCircle className="h-4 w-4" />
                     Envoyer un message
                   </button>
                 </div>

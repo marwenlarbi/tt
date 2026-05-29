@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const Signup = () => {
@@ -12,8 +12,26 @@ const Signup = () => {
 
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [passwordRules, setPasswordRules] = useState({
+    passwordMinLength: 8,
+    requireSpecialChars: true,
+  });
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    fetch('http://127.0.0.1:8000/api/auth/password-rules/')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data.passwordMinLength === 'number') {
+          setPasswordRules({
+            passwordMinLength: data.passwordMinLength,
+            requireSpecialChars: Boolean(data.requireSpecialChars),
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,6 +45,19 @@ const Signup = () => {
 
     if (password !== passwordConfirm) {
       setErrorMsg('Les mots de passe ne correspondent pas');
+      return;
+    }
+
+    const minLen = passwordRules.passwordMinLength;
+    if (password.length < minLen) {
+      setErrorMsg(`Le mot de passe doit contenir au moins ${minLen} caractères.`);
+      return;
+    }
+    if (
+      passwordRules.requireSpecialChars &&
+      /^[\p{L}\p{N}]+$/u.test(password)
+    ) {
+      setErrorMsg('Le mot de passe doit contenir au moins un caractère spécial.');
       return;
     }
 
@@ -68,31 +99,11 @@ const Signup = () => {
         throw new Error(backendError);
       }
 
-      // Succès
+      // Succès : redirection vers la page de connexion (pas de session auto)
       console.log('Inscription réussie →', data);
 
-      // Stockage du token JWT (si ton backend en renvoie un)
-      if (data.tokens?.access) {
-        localStorage.setItem('access_token', data.tokens.access);
-        localStorage.setItem('refresh_token', data.tokens.refresh);
-      }
-      if (data.user) {
-        localStorage.setItem('user', JSON.stringify(data.user));
-      }
-
-      alert('Compte créé avec succès !');
-      let role = data.user?.role;
-      if (role === 'owner') role = 'user';
-      if (data.tokens?.access) {
-        if (role === 'user') navigate('/home');
-        else if (role === 'vet') navigate('/vet/dashboard');
-        else if (role === 'admin') {
-          localStorage.setItem('isAdmin', 'true');
-          navigate('/admin/dashboard');
-        } else navigate('/login');
-      } else {
-        navigate('/login');
-      }
+      alert('Compte créé avec succès ! Vous pouvez vous connecter.');
+      navigate('/login', { replace: true });
 
     } catch (err) {
       console.error('Erreur inscription :', err);
@@ -165,9 +176,15 @@ const Signup = () => {
                 placeholder="Mot de passe"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="p-4 mb-4 w-full border border-gray-300 rounded-md shadow-inner text-gray-600"
+                className="p-4 mb-2 w-full border border-gray-300 rounded-md shadow-inner text-gray-600"
                 required
+                minLength={passwordRules.passwordMinLength}
+                autoComplete="new-password"
               />
+              <p className="text-white text-sm mb-4 opacity-90">
+                Au moins {passwordRules.passwordMinLength} caractères
+                {passwordRules.requireSpecialChars ? ', dont au moins un caractère spécial' : ''}.
+              </p>
 
               {/* Nouveau champ confirmation */}
               <input
@@ -177,6 +194,8 @@ const Signup = () => {
                 onChange={(e) => setPasswordConfirm(e.target.value)}
                 className="p-4 mb-4 w-full border border-gray-300 rounded-md shadow-inner text-gray-600"
                 required
+                minLength={passwordRules.passwordMinLength}
+                autoComplete="new-password"
               />
 
               <div className="mb-6">

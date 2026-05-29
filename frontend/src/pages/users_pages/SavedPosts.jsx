@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/Layout';
-import { Bookmark, MessageSquare, Heart, Share, Trash2, Loader2 } from 'lucide-react';
+import PageSpinner from '../../components/PageSpinner';
+import { Bookmark, MessageSquare, Heart, Share, Trash2 } from 'lucide-react';
 import api, { mediaUrl } from '../../services/api';
 
 const getAccessToken = () =>
@@ -27,7 +28,7 @@ function mapPost(p) {
     userId: p.author?.id || p.user_id || p.userId || null,
     user: p.author?.first_name && p.author?.last_name 
       ? `${p.author.first_name} ${p.author.last_name}`
-      : p.author?.username || p.author || 'Utilisateur',
+      : (p.author?.username || (typeof p.author === 'string' ? p.author : 'Utilisateur')),
   };
 }
 
@@ -104,12 +105,7 @@ const SavedPosts = () => {
             Publications enregistrées
           </h1>
 
-          {loading && (
-            <div className="flex justify-center items-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <span className="ml-2 text-gray-600 dark:text-gray-400">Chargement…</span>
-            </div>
-          )}
+          {loading && <PageSpinner />}
 
           {error && !loading && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-center">

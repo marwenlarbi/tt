@@ -1,8 +1,24 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Search, PlusCircle, X, Plus, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { ShoppingCart, Search, PlusCircle, X, Plus, Pencil, Trash2 } from 'lucide-react';
 import Layout from '../../components/Layout';
+import PageSpinner from '../../components/PageSpinner';
 import api, { mediaUrl } from '../../services/api';
+
+function formatDeleteError(err, fallback) {
+  const d = err?.response?.data;
+  if (d?.detail != null) {
+    if (typeof d.detail === 'string') return d.detail;
+    if (Array.isArray(d.detail)) return d.detail.map(String).join(' ');
+    return JSON.stringify(d.detail);
+  }
+  if (typeof d === 'string') return d;
+  if (d?.message && typeof d.message === 'string') return d.message;
+  if (err?.message) return err.message;
+  const status = err?.response?.status;
+  if (status) return `Erreur serveur (${status}).`;
+  return fallback;
+}
 
 const Pets = () => {
   const navigate = useNavigate();
@@ -105,8 +121,7 @@ const Pets = () => {
       await api.delete(`/pets/${id}/`);
       await loadPets();
     } catch (err) {
-      const msg = err?.response?.data?.detail || 'Suppression impossible.';
-      alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      alert(formatDeleteError(err, 'Suppression impossible.'));
     }
   };
 
@@ -224,9 +239,7 @@ const Pets = () => {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-12 text-gray-500 dark:text-gray-400">
-            <Loader2 className="w-8 h-8 animate-spin" />
-          </div>
+          <PageSpinner />
         ) : pets.length > 0 ? (
           <div className="max-w-2xl mx-auto mb-12 grid gap-3">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-dark-text">Mes animaux</h2>
@@ -290,8 +303,18 @@ const Pets = () => {
 
         {/* Modal */}
         {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-dark-card rounded-lg w-full max-w-md p-6 relative max-h-[90vh] overflow-y-auto scrollbar-rounded">
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => {
+              setIsModalOpen(false);
+              resetForm();
+            }}
+            role="presentation"
+          >
+            <div
+              className="bg-white dark:bg-dark-card rounded-lg w-full max-w-md p-6 relative max-h-[90vh] overflow-y-auto scrollbar-rounded"
+              onClick={(e) => e.stopPropagation()}
+            >
               {/* Bouton de fermeture */}
               <button
                 type="button"
@@ -300,6 +323,7 @@ const Pets = () => {
                   resetForm();
                 }}
                 className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                aria-label="Fermer"
               >
                 <X className="w-6 h-6" />
               </button>

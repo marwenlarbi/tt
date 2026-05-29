@@ -1,175 +1,137 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import AdminLayout from './AdminLayout';
-import { Users, FileText, ShoppingCart, TrendingUp, AlertTriangle, Heart, MessageSquare, Activity, Coins, PawPrint, Stethoscope, Calendar, Bell } from "lucide-react";
+import PageSpinner from '../../components/PageSpinner';
+import { Users, FileText, ShoppingCart, Heart, MessageSquare, Activity, Coins, PawPrint, Stethoscope, Calendar, Bell } from "lucide-react";
 import api from '../../services/api';
+
+const PERIOD_TO_DAYS = {
+  today: 1,
+  week: 7,
+  month: 30,
+  year: 365,
+};
+
+function formatRelativeFr(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "À l’instant";
+  if (mins < 60) return `Il y a ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `Il y a ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `Il y a ${days} j`;
+}
 
 const AdminDashboard = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [loading, setLoading] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
+  const [analytics, setAnalytics] = useState({
+    popularPosts: [],
+    recentActivity: [],
+  });
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/admin/dashboard/');
-      const d = res.data;
+      const days = PERIOD_TO_DAYS[selectedPeriod] || 30;
+      const [dashRes, anaRes] = await Promise.all([
+        api.get('/admin/dashboard/'),
+        api.get('/admin/stats/analytics/', { params: { days } }),
+      ]);
+      const d = dashRes.data;
+      const a = anaRes.data || {};
       // Normalisation minimale pour l'UI existante
       setDashboardData({
         users: {
           total: d.users?.total ?? 0,
           active: d.users?.active ?? 0,
-          new: 0,
-          growth: 0,
+          vetsTotal: d.users?.vets_total ?? 0,
+          vetsPending: d.users?.vets_pending ?? 0,
         },
         posts: {
           total: d.posts?.total ?? 0,
-          pending: 0,
           reported: d.posts?.reports_pending ?? 0,
-          growth: 0,
         },
         products: {
           total: d.products?.total ?? 0,
           outOfStock: d.products?.outOfStock ?? 0,
           lowStock: d.products?.lowStock ?? 0,
-          growth: 0,
         },
         orders: {
           total: d.orders?.total ?? 0,
           pending: d.orders?.pending ?? 0,
-          completed: 0,
           revenue: d.orders?.revenue ?? 0,
-        }
+        },
+        platform: {
+          petsRegistered: d.platform?.pets_registered ?? 0,
+          consultationsTotal: d.platform?.consultations_total ?? 0,
+        },
+      });
+      setAnalytics({
+        popularPosts: Array.isArray(a.popularPosts) ? a.popularPosts : [],
+        recentActivity: Array.isArray(a.recentActivity) ? a.recentActivity : [],
       });
     } catch (e) {
       console.error('Erreur dashboard admin:', e);
       setDashboardData(null);
+      setAnalytics({ popularPosts: [], recentActivity: [] });
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedPeriod]);
 
   useEffect(() => {
     fetchDashboard();
-  }, []);
-
-  const recentActivities = [
-    {
-      id: 1,
-      type: 'user',
-      message: 'Nouvel utilisateur inscrit',
-      user: 'Alice Martin',
-      time: '5 min',
-      icon: Users,
-      color: 'text-blue-500'
-    },
-    {
-      id: 2,
-      type: 'post',
-      message: 'Nouveau post publié',
-      user: 'Jean Dupont',
-      time: '12 min',
-      icon: FileText,
-      color: 'text-green-500'
-    },
-    {
-      id: 3,
-      type: 'order',
-      message: 'Commande passée',
-      user: 'Marie Lebrun',
-      time: '23 min',
-      icon: ShoppingCart,
-      color: 'text-purple-500'
-    },
-    {
-      id: 4,
-      type: 'report',
-      message: 'Post signalé',
-      user: 'Système',
-      time: '45 min',
-      icon: AlertTriangle,
-      color: 'text-red-500'
-    },
-    {
-      id: 5,
-      type: 'vet',
-      message: 'Vétérinaire vérifié',
-      user: 'Dr. Sophie',
-      time: '1h',
-      icon: Stethoscope,
-      color: 'text-orange-500'
-    }
-  ];
+  }, [fetchDashboard]);
 
   const alerts = [
     {
       id: 1,
-      type: 'warning',
-      title: 'Posts en attente',
-      message: '12 posts nécessitent une modération',
-      action: 'Modérer',
-      link: '/admin/posts'
-    },
-    {
-      id: 2,
-      type: 'error',
-      title: 'Stock faible',
-      message: '8 produits ont un stock faible',
-      action: 'Gérer',
-      link: '/admin/products'
-    },
-    {
-      id: 3,
-      type: 'info',
+      type: dashboardData?.posts?.reported > 0 ? 'warning' : 'info',
       title: 'Signalements',
-      message: '3 posts ont été signalés',
+      message:
+        dashboardData?.posts?.reported > 0
+          ? `${dashboardData.posts.reported} signalement(s) en attente`
+          : 'Aucun signalement en attente',
       action: 'Vérifier',
-      link: '/admin/posts'
-    }
-  ];
-
-  const topPosts = [
-    {
-      id: 1,
-      title: 'Belle journée au parc avec Rex !',
-      author: 'Jean Dupont',
-      likes: 245,
-      comments: 32,
-      engagement: 92.5
+      link: '/admin/posts',
     },
     {
       id: 2,
-      title: 'Conseils pour dresser votre chien',
-      author: 'Dr. Mouna',
-      likes: 456,
-      comments: 67,
-      engagement: 89.2
+      type: dashboardData?.products?.lowStock > 0 ? 'error' : 'info',
+      title: 'Stock produits',
+      message:
+        dashboardData?.products?.lowStock > 0
+          ? `${dashboardData.products.lowStock} produit(s) en stock faible`
+          : 'Aucun stock faible détecté',
+      action: 'Gérer',
+      link: '/admin/products',
     },
     {
       id: 3,
-      title: 'Première visite chez le vétérinaire',
-      author: 'Marie Lefèvre',
-      likes: 189,
-      comments: 28,
-      engagement: 76.8
-    }
+      type: dashboardData?.users?.vetsPending > 0 ? 'warning' : 'info',
+      title: 'Demandes vétérinaires',
+      message:
+        dashboardData?.users?.vetsPending > 0
+          ? `${dashboardData.users.vetsPending} vérification(s) en attente`
+          : 'Aucune vérification en attente',
+      action: 'Traiter',
+      link: '/admin/vets',
+    },
   ];
 
-  const StatCard = ({ title, value, change, icon: Icon, color, subtitle }) => {
-    const isPositive = change > 0;
+  const StatCard = ({ title, value, icon: Icon, color, subtitle }) => {
     return (
       <div className="bg-white rounded-xl p-6 shadow-md">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-gray-600 text-sm font-medium">{title}</p>
             <p className="text-3xl font-bold text-gray-900">{value}</p>
-            {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
-            <div className="flex items-center mt-2">
-              <TrendingUp className={`w-4 h-4 mr-1 ${isPositive ? 'text-green-500' : 'text-red-500'}`} />
-              <span className={`text-sm font-medium ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                {Math.abs(change)}%
-              </span>
-              <span className="text-gray-500 text-sm ml-1">vs mois dernier</span>
-            </div>
+            {subtitle && <p className="text-sm text-gray-500 mt-2">{subtitle}</p>}
           </div>
           <div className={`p-3 rounded-full ${color}`}>
             <Icon className="w-8 h-8 text-white" />
@@ -247,7 +209,9 @@ const AdminDashboard = () => {
 
         {/* Statistiques principales */}
         {loading && (
-          <div className="mb-6 text-gray-600">Chargement…</div>
+          <div className="mb-6 flex justify-start">
+            <PageSpinner compact size="md" />
+          </div>
         )}
         {!loading && !dashboardData && (
           <div className="mb-6 text-red-600">Impossible de charger le dashboard.</div>
@@ -256,7 +220,6 @@ const AdminDashboard = () => {
           <StatCard
             title="Utilisateurs"
             value={(dashboardData?.users?.total ?? 0).toLocaleString()}
-            change={dashboardData?.users?.growth ?? 0}
             icon={Users}
             color="bg-blue-500"
             subtitle={`${dashboardData?.users?.active ?? 0} actifs`}
@@ -264,7 +227,6 @@ const AdminDashboard = () => {
           <StatCard
             title="Publications"
             value={(dashboardData?.posts?.total ?? 0).toLocaleString()}
-            change={dashboardData?.posts?.growth ?? 0}
             icon={FileText}
             color="bg-green-500"
             subtitle={`${dashboardData?.posts?.reported ?? 0} signalés`}
@@ -272,15 +234,13 @@ const AdminDashboard = () => {
           <StatCard
             title="Produits"
             value={dashboardData?.products?.total ?? 0}
-            change={dashboardData?.products?.growth ?? 0}
             icon={ShoppingCart}
             color="bg-purple-500"
             subtitle={`${dashboardData?.products?.outOfStock ?? 0} en rupture`}
           />
           <StatCard
-            title="Revenus"
+            title="Revenus (hors annulées)"
             value={`${(dashboardData?.orders?.revenue ?? 0).toLocaleString()} DT`}
-            change={23.1}
             icon={Coins}
             color="bg-orange-500"
             subtitle={`${dashboardData?.orders?.total ?? 0} commandes`}
@@ -292,18 +252,34 @@ const AdminDashboard = () => {
           <div className="bg-white rounded-xl p-6 shadow-md">
             <h3 className="text-lg font-semibold mb-4 text-gray-800">Activité Récente</h3>
             <div className="space-y-4">
-              {recentActivities.map(activity => {
-                const IconComponent = activity.icon;
+              {analytics.recentActivity.map((activity, index) => {
+                const icons = {
+                  user: Users,
+                  post: FileText,
+                  order: ShoppingCart,
+                  vet: Stethoscope,
+                };
+                const colors = {
+                  user: 'text-blue-500',
+                  post: 'text-green-500',
+                  order: 'text-purple-500',
+                  vet: 'text-orange-500',
+                };
+                const IconComponent = icons[activity.type] || Users;
+                const iconColor = colors[activity.type] || 'text-gray-500';
                 return (
-                  <div key={activity.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <IconComponent className={`w-5 h-5 ${activity.color}`} />
+                  <div key={`${activity.type}-${activity.at}-${index}`} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <IconComponent className={`w-5 h-5 ${iconColor}`} />
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">{activity.message}</p>
-                      <p className="text-xs text-gray-600">{activity.user} • Il y a {activity.time}</p>
+                      <p className="text-sm font-medium text-gray-900">{activity.action}</p>
+                      <p className="text-xs text-gray-600">{activity.user} • {formatRelativeFr(activity.at)}</p>
                     </div>
                   </div>
                 );
               })}
+              {analytics.recentActivity.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-8">Aucune activité récente</p>
+              )}
             </div>
             <div className="mt-4 text-center">
               <a 
@@ -319,7 +295,7 @@ const AdminDashboard = () => {
           <div className="bg-white rounded-xl p-6 shadow-md">
             <h3 className="text-lg font-semibold mb-4 text-gray-800">Posts Populaires</h3>
             <div className="space-y-4">
-              {topPosts.map((post, index) => (
+              {analytics.popularPosts.map((post, index) => (
                 <div key={post.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg">
                   <div className="bg-purple-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
                     {index + 1}
@@ -338,12 +314,15 @@ const AdminDashboard = () => {
                       </span>
                       <span className="flex items-center gap-1 text-xs text-purple-600">
                         <Activity className="w-3 h-3" />
-                        {post.engagement}%
+                        {post.views} interactions
                       </span>
                     </div>
                   </div>
                 </div>
               ))}
+              {analytics.popularPosts.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-8">Aucune publication</p>
+              )}
             </div>
             <div className="mt-4 text-center">
               <a 
@@ -361,31 +340,32 @@ const AdminDashboard = () => {
           <div className="bg-white rounded-xl p-6 shadow-md text-center">
             <PawPrint className="w-12 h-12 text-purple-500 mx-auto mb-3" />
             <h4 className="font-semibold text-gray-800 mb-2">Animaux Enregistrés</h4>
-            <p className="text-3xl font-bold text-purple-500 mb-1">2,847</p>
-            <div className="flex items-center justify-center gap-1 text-sm text-green-600">
-              <TrendingUp className="w-4 h-4" />
-              <span>+156 ce mois</span>
-            </div>
+            <p className="text-3xl font-bold text-purple-500 mb-1">
+              {(dashboardData?.platform?.petsRegistered ?? 0).toLocaleString()}
+            </p>
+            <p className="text-sm text-gray-600">Total plateforme</p>
           </div>
           
           <div className="bg-white rounded-xl p-6 shadow-md text-center">
             <Stethoscope className="w-12 h-12 text-blue-500 mx-auto mb-3" />
             <h4 className="font-semibold text-gray-800 mb-2">Vétérinaires Actifs</h4>
-            <p className="text-3xl font-bold text-blue-500 mb-1">47</p>
-            <div className="flex items-center justify-center gap-1 text-sm text-green-600">
-              <TrendingUp className="w-4 h-4" />
-              <span>+3 ce mois</span>
-            </div>
+            <p className="text-3xl font-bold text-blue-500 mb-1">
+              {(dashboardData?.users?.vetsTotal ?? 0).toLocaleString()}
+            </p>
+            <p className="text-sm text-gray-600">
+              {(dashboardData?.users?.vetsPending ?? 0) > 0
+                ? `${dashboardData.users.vetsPending} en attente`
+                : 'Aucune attente'}
+            </p>
           </div>
           
           <div className="bg-white rounded-xl p-6 shadow-md text-center">
             <Calendar className="w-12 h-12 text-green-500 mx-auto mb-3" />
             <h4 className="font-semibold text-gray-800 mb-2">Consultations</h4>
-            <p className="text-3xl font-bold text-green-500 mb-1">394</p>
-            <div className="flex items-center justify-center gap-1 text-sm text-green-600">
-              <TrendingUp className="w-4 h-4" />
-              <span>+28 ce mois</span>
-            </div>
+            <p className="text-3xl font-bold text-green-500 mb-1">
+              {(dashboardData?.platform?.consultationsTotal ?? 0).toLocaleString()}
+            </p>
+            <p className="text-sm text-gray-600">Total historique</p>
           </div>
         </div>
 

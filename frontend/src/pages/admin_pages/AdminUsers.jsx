@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
+import PageSpinner from '../../components/PageSpinner';
 import api from '../../services/api';
 import { Search, Edit, Trash2, Mail, Phone, MapPin, Calendar, User, Crown } from 'lucide-react';
 
@@ -234,7 +235,11 @@ const AdminUsers = () => {
           <p className="text-gray-600">Gérez les comptes utilisateurs de la plateforme</p>
         </div>
 
-        {loading && <div className="mb-4 text-gray-600">Chargement...</div>}
+        {loading && (
+          <div className="mb-4 flex justify-start">
+            <PageSpinner compact size="md" />
+          </div>
+        )}
 
         {/* Filtres et actions */}
         <div className="bg-white rounded-xl p-6 shadow-md mb-6">
@@ -430,13 +435,19 @@ const AdminUsers = () => {
 
         {/* Modal d'édition/ajout */}
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-full max-w-md p-6 relative">
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowModal(false)}
+            role="presentation"
+          >
+            <div className="bg-white rounded-lg w-full max-w-md p-6 relative" onClick={(e) => e.stopPropagation()}>
               <button
+                type="button"
                 onClick={() => setShowModal(false)}
-                className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+                className="absolute top-3 right-3 text-xl leading-none text-gray-500 hover:text-gray-700"
+                aria-label="Fermer"
               >
-                ✕
+                ×
               </button>
               
               <h3 className="text-xl font-semibold mb-4">
@@ -511,19 +522,12 @@ const AdminUsers = () => {
                   </select>
                 </div>
                 
-                <div className="flex gap-3 pt-4">
+                <div className="pt-4">
                   <button
                     type="submit"
-                    className="flex-1 bg-[#8657ff] hover:bg-purple-700 text-white py-2 px-4 rounded font-medium transition-colors"
+                    className="w-full bg-[#8657ff] hover:bg-purple-700 text-white py-2 px-4 rounded font-medium transition-colors"
                   >
                     {editingUser ? 'Modifier' : 'Ajouter'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded font-medium transition-colors"
-                  >
-                    Annuler
                   </button>
                 </div>
               </form>

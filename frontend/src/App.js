@@ -11,6 +11,7 @@ import VetPrescriptions from './pages/vet_pages/VetPrescriptions';
 import VetMessages from './pages/vet_pages/VetMessages';
 import VetStats from './pages/vet_pages/VetStats';
 import VetSettings from './pages/vet_pages/VetSettings';
+import VetAdvicePublish from './pages/vet_pages/VetAdvicePublish';
 
 
 
@@ -25,12 +26,15 @@ import Profile from './pages/users_pages/Profile';
 import Pets from './pages/users_pages/pets';
 import Vet from './pages/users_pages/vet';
 import ResetPassword from './pages/ResetPassword';
+import ResetPasswordConfirm from './pages/ResetPasswordConfirm';
 import Accueil from './pages/Accueil';
 import Following from './pages/users_pages/Following';
 import Followers from './pages/users_pages/Followers';
 import Friends from './pages/users_pages/Friends';
 import SavedPosts from './pages/users_pages/SavedPosts';
 import UserProfile from './pages/users_pages/UserProfile';
+import VetAdviceConsult from './pages/users_pages/VetAdviceConsult';
+import ConseilAI from './pages/users_pages/ConseilAI';
 
 // Admin Components
 import AdminProduct from './pages/admin_pages/AdminProduct';
@@ -133,6 +137,7 @@ function App() {
         <Route path="/vet/messages" element={<VetMessages />} />
         <Route path="/vet/stats" element={<VetStats />} />
         <Route path="/vet/settings" element={<VetSettings />} />
+        <Route path="/vet/conseils" element={<VetAdvicePublish />} />
 
         {/* Public routes */}
         <Route path="/" element={<Accueil />} />
@@ -140,6 +145,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/reset-password/confirm" element={<ResetPasswordConfirm />} />
         <Route path="/home" element={<Home />} />
         <Route path="/product" element={<ProductDetail />} />
         <Route path="/profile" element={<Profile />} />
@@ -150,6 +156,8 @@ function App() {
         <Route path="/friends" element={<Friends />} />
         <Route path="/adoption" element={<Adoption />} />
         <Route path="/bookmarks" element={<SavedPosts />} />
+        <Route path="/vet-advice" element={<VetAdviceConsult />} />
+        <Route path="/conseil-ai" element={<ConseilAI />} />
         <Route path="/users/:userId" element={<UserProfile />} />
       </Routes>
     </Router>

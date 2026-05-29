@@ -1,10 +1,43 @@
-
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PawPrint, Heart, Users, Shield, Star, ArrowRight } from 'lucide-react';
+import { PawPrint, Heart, Users, Shield, ArrowRight } from 'lucide-react';
+import api from '../services/api';
 
 const Accueil = () => {
- 
   const navigate = useNavigate();
+  const [landingStats, setLandingStats] = useState({
+    pets: null,
+    vets: null,
+    users: null,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get('/auth/landing-stats/')
+      .then((res) => {
+        if (cancelled) return;
+        const d = res.data || {};
+        setLandingStats({
+          pets: d.pets_registered ?? 0,
+          vets: d.vets_verified ?? 0,
+          users: d.users_total ?? 0,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLandingStats({ pets: null, vets: null, users: null });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const formatStat = (value) => {
+    if (value == null) return '…';
+    return Number(value).toLocaleString('fr-FR');
+  };
 
   const handleNavigation = (path) => {
     navigate(path);
@@ -30,27 +63,6 @@ const Accueil = () => {
       icon: <Shield className="w-8 h-8 text-white" />,
       title: "Vétérinaires",
       description: "Accédez à des consultations avec des vétérinaires qualifiés"
-    }
-  ];
-
-  const testimonials = [
-    {
-      name: "Marie Lefèvre",
-      text: "Cheebo m'a aidée à trouver le vétérinaire parfait pour mon chat. Service excellent !",
-      rating: 5,
-      avatar: "👩‍🦰"
-    },
-    {
-      name: "Jean Dupont",
-      text: "Grâce à Cheebo, j'ai adopté Rex et c'est le bonheur à la maison !",
-      rating: 5,
-      avatar: "👨"
-    },
-    {
-      name: "Sophie Martin",
-      text: "La communauté est formidable, j'ai trouvé plein de conseils pour mon chien.",
-      rating: 5,
-      avatar: "👩"
     }
   ];
 
@@ -178,16 +190,22 @@ const Accueil = () => {
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
               <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 shadow-lg">
-                <div className="text-3xl font-bold text-purple-600 mb-2">1000+</div>
+                <div className="text-3xl font-bold text-purple-600 mb-2">
+                  {formatStat(landingStats.pets)}
+                </div>
                 <div className="text-gray-600">Animaux enregistrés</div>
               </div>
               <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 shadow-lg">
-                <div className="text-3xl font-bold text-purple-600 mb-2">50+</div>
+                <div className="text-3xl font-bold text-purple-600 mb-2">
+                  {formatStat(landingStats.vets)}
+                </div>
                 <div className="text-gray-600">Vétérinaires partenaires</div>
               </div>
               <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 shadow-lg">
-                <div className="text-3xl font-bold text-purple-600 mb-2">500+</div>
-                <div className="text-gray-600">Adoptions réussies</div>
+                <div className="text-3xl font-bold text-purple-600 mb-2">
+                  {formatStat(landingStats.users)}
+                </div>
+                <div className="text-gray-600">Nombre d&apos;utilisateurs</div>
               </div>
             </div>
           </div>
@@ -215,39 +233,6 @@ const Accueil = () => {
                     <h3 className="text-xl font-semibold text-white mb-2">{feature.title}</h3>
                     <p className="text-white/80">{feature.description}</p>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Testimonials Section */}
-        <section className="py-20 px-6 bg-gray-50">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-4xl font-bold text-gray-800 mb-4">
-                Ce que disent nos utilisateurs
-              </h2>
-              <p className="text-xl text-gray-600">
-                Rejoignez des milliers d'amoureux des animaux satisfaits
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {testimonials.map((testimonial, index) => (
-                <div key={index} className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
-                  <div className="flex items-center mb-4">
-                    <div className="text-3xl mr-3">{testimonial.avatar}</div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800">{testimonial.name}</h4>
-                      <div className="flex space-x-1">
-                        {[...Array(testimonial.rating)].map((_, i) => (
-                          <Star key={i} className="w-4 h-4 text-yellow-400 fill-current" />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-gray-600 italic">"{testimonial.text}"</p>
                 </div>
               ))}
             </div>
@@ -311,7 +296,7 @@ const Accueil = () => {
           </div>
           
           <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2025 Cheebo. Tous droits réservés.</p>
+            <p>&copy; 2026 Cheebo. Tous droits réservés.</p>
           </div>
         </div>
       </footer>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageCircle, Send, X, Plus, User, Search, Pencil, Trash2, Check, MoreVertical, Ban } from 'lucide-react';
 import api, { mediaUrl } from '../../services/api';
+import PageSpinner from '../PageSpinner';
 
 /** Première ligne d’un message = partage de publication (fil d’actualité). */
 export const CHEEBO_POST_SHARE_PREFIX = '__CHEEBO_POST__:';
@@ -57,7 +58,11 @@ function SharedPostCard({ postId, isCurrentUser, navigate }) {
     : 'bg-primary/15 text-primary hover:bg-primary/25 dark:text-primary';
 
   if (loading) {
-    return <p className={`text-xs ${muted}`}>Chargement de la publication…</p>;
+    return (
+      <div className={`flex justify-center py-2 ${muted}`}>
+        <PageSpinner compact size="sm" />
+      </div>
+    );
   }
 
   if (missing || !post) {
@@ -182,6 +187,9 @@ function mapThreadToUiMessages(rows, myId, otherName) {
 
 export const CHEEBO_CHAT_SHARE_POST_EVENT = 'cheebo:chat-share-post';
 
+/** Détail: `{ user: { id, name, avatar } }` — ouvre le widget flottant (coin bas-gauche) sur cette conversation. */
+export const CHEEBO_OPEN_PRIVATE_CHAT_EVENT = 'cheebo:open-private-chat';
+
 const PrivateChat = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -272,7 +280,15 @@ const PrivateChat = () => {
   }, []);
 
   const filterNonAdminUsers = useCallback(
-    (users) => (Array.isArray(users) ? users.filter((u) => !u?.is_staff && !u?.is_superuser) : []),
+    (users) =>
+      Array.isArray(users)
+        ? users.filter(
+            (u) =>
+              u &&
+              !u.is_superuser &&
+              (!u.is_staff || u.role === 'vet')
+          )
+        : [],
     []
   );
 
@@ -550,27 +566,44 @@ const PrivateChat = () => {
     return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
   };
 
-  const startNewChat = async (user) => {
-    const existing = conversations.find((c) => c.user_id === user.id);
-    if (existing) {
-      await openConversation(existing);
+  const openChatWithUser = useCallback(
+    async (user) => {
+      if (!user?.id) return;
+      const existing = conversations.find((c) => c.user_id === user.id);
+      if (existing) {
+        await openConversation(existing);
+        setShowNewChatModal(false);
+        return;
+      }
+      const conv = {
+        user_id: user.id,
+        participantId: user.id,
+        participantName: user.name,
+        participantAvatar: user.avatar,
+        lastMessage: '',
+        lastMessageTime: new Date().toISOString(),
+        unread: 0,
+        messages: [],
+      };
+      setConversations((prev) => [conv, ...prev]);
+      await openConversation(conv);
       setShowNewChatModal(false);
-      return;
-    }
-    const conv = {
-      user_id: user.id,
-      participantId: user.id,
-      participantName: user.name,
-      participantAvatar: user.avatar,
-      lastMessage: '',
-      lastMessageTime: new Date().toISOString(),
-      unread: 0,
-      messages: [],
+    },
+    [conversations, openConversation]
+  );
+
+  const startNewChat = openChatWithUser;
+
+  useEffect(() => {
+    const handler = (e) => {
+      const user = e.detail?.user;
+      if (!user?.id || !getAccessToken()) return;
+      setIsOpen(true);
+      void openChatWithUser(user);
     };
-    setConversations((prev) => [conv, ...prev]);
-    await openConversation(conv);
-    setShowNewChatModal(false);
-  };
+    window.addEventListener(CHEEBO_OPEN_PRIVATE_CHAT_EVENT, handler);
+    return () => window.removeEventListener(CHEEBO_OPEN_PRIVATE_CHAT_EVENT, handler);
+  }, [openChatWithUser]);
 
   const totalUnread = conversations.reduce((sum, conv) => sum + (conv.unread || 0), 0);
 
@@ -995,14 +1028,22 @@ const PrivateChat = () => {
       </div>
 
       {showNewChatModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="max-h-96 w-full max-w-md overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-dark-card">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setShowNewChatModal(false)}
+          role="presentation"
+        >
+          <div
+            className="max-h-96 w-full max-w-md overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-dark-card"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-600">
               <h3 className="font-semibold text-gray-800 dark:text-dark-text">Nouveau message</h3>
               <button
                 type="button"
                 onClick={() => setShowNewChatModal(false)}
                 className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+                aria-label="Fermer"
               >
                 <X className="h-5 w-5 text-gray-400" />
               </button>

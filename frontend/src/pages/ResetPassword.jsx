@@ -1,16 +1,26 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../services/api";
 
 const ResetPassword = () => {
   const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
-  const handleReset = (e) => {
+  const handleReset = async (e) => {
     e.preventDefault();
-
-    // Logique de reset (ex: appel API, etc.)
-    alert(`Un lien de réinitialisation a été envoyé à ${email}`);
-    navigate("/");
+    setLoading(true);
+    setMessage("");
+    try {
+      await api.post("/auth/password-reset/request/", { email });
+      setMessage("Un email de réinitialisation a été envoyé. Vérifiez votre boîte mail.");
+    } catch (error) {
+      const detail = error?.response?.data?.detail;
+      setMessage(Array.isArray(detail) ? detail.join(" ") : (detail || "Erreur lors de l'envoi du lien."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -38,15 +48,17 @@ const ResetPassword = () => {
               />
               <button
                 type="submit"
+                disabled={loading}
                 className="p-4 mt-2 w-full bg-[#ff6b6b] text-white rounded-md cursor-pointer transition duration-300 ease-in-out hover:bg-[#ff4949]"
               >
-                Vérifier
+                {loading ? "Envoi..." : "Réinitialiser"}
               </button>
             </form>
+            {message ? <p className="mt-4 text-center text-sm text-white">{message}</p> : null}
             <p className="mt-4 text-center text-sm text-white">
               Retour à{" "}
               <span
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/login")}
                 className="text-white underline cursor-pointer"
               >
                 la connexion

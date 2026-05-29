@@ -2,24 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
-.scrollbar-rounded::-webkit-scrollbar-thumb {
-  border-radius: 9999px;
+/* Scrollbars = même thème que Home.jsx (tailwind: custom-purple + custom-light-track / custom-dark-track) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #6b46c1 #e5e7eb;
 }
 
-.scrollbar-rounded::-webkit-scrollbar-track {
-  border-radius: 9999px;
+.dark * {
+  scrollbar-color: #6b46c1 #1f2937;
 }
 
-/* For Firefox compatibility */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #e5e7eb;
+  border-radius: 9999px;
+  border-right: 1px solid #d1d5db;
+}
+
+.dark *::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-right: 1px solid #4b5563;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #6b46c1;
+  border-radius: 9999px;
+  border: 2px solid #e5e7eb;
+}
+
+.dark *::-webkit-scrollbar-thumb {
+  border-color: #1f2937;
+}
+
+/* Scrollbar de la page (viewport) : elle est sur <html>, et .dark * n’inclut pas l’élément .dark lui-même */
+html.dark {
+  scrollbar-color: #6b46c1 #1f2937;
+}
+
+html.dark::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-right: 1px solid #4b5563;
+}
+
+html.dark::-webkit-scrollbar-thumb {
+  border-color: #1f2937;
+}
+
+/*
+  Home (sidebars) : .scrollbar-thin + scrollbar-track-custom-light-track posent
+  --scrollbar-track avec !important. Le variant dark: peut perdre en cascade.
+  Forcer la piste sombre quand .dark est sur <html> (thème Layout).
+*/
+html.dark .scrollbar-thin,
+html.dark .scrollbar {
+  --scrollbar-track: #1f2937 !important;
+  scrollbar-color: #6b46c1 #1f2937 !important;
+}
+
+html.dark .scrollbar-thin::-webkit-scrollbar-track,
+html.dark .scrollbar::-webkit-scrollbar-track {
+  background-color: #1f2937 !important;
+  border-right: 1px solid #4b5563;
+}
+
+html.dark .scrollbar-thin::-webkit-scrollbar-thumb,
+html.dark .scrollbar::-webkit-scrollbar-thumb {
+  border-color: #1f2937 !important;
+}
+
+/* Classe conservée pour compatibilité ; le rendu vient des règles globales ci-dessus */
 .scrollbar-rounded {
   scrollbar-width: thin;
-  scrollbar-color: #6B46C1 #E5E7EB;
 }
 
-.dark .scrollbar-rounded {
-  scrollbar-color: #6B46C1 #1F2937;
-}
-/* Styles pour le chat - Ajouter à la fin du fichier */
 .chat-message {
   animation: slideInMessage 0.3s ease-out;
 }
@@ -35,16 +94,3 @@
   }
 }
 
-/* Amélioration des scrollbars pour le chat */
-.chat-scroll::-webkit-scrollbar {
-  width: 4px;
-}
-
-.chat-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.chat-scroll::-webkit-scrollbar-thumb {
-  background: #8657ff;
-  border-radius: 2px;
-}

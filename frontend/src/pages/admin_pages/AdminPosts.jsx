@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import AdminLayout from './AdminLayout';
-import api from '../../services/api';
+import PageSpinner from '../../components/PageSpinner';
+import api, { mediaUrl } from '../../services/api';
 import { 
   Search, 
   Eye, 
@@ -17,6 +18,49 @@ import {
   
   Calendar
 } from 'lucide-react';
+
+const ALLOWED_POST_TYPES = ['text', 'image', 'video'];
+const ALLOWED_POST_STATUS = ['pending', 'approved', 'flagged'];
+
+function normalizePostType(type) {
+  const key = String(type ?? 'text').toLowerCase().trim();
+  return ALLOWED_POST_TYPES.includes(key) ? key : 'text';
+}
+
+function normalizePostStatus(status) {
+  const key = String(status ?? 'approved').toLowerCase().trim();
+  return ALLOWED_POST_STATUS.includes(key) ? key : 'approved';
+}
+
+function hasMedia(post) {
+  return Boolean(post?.image);
+}
+
+function renderPostMedia(post, className = 'w-20 h-20') {
+  if (!hasMedia(post)) return null;
+  const src = mediaUrl(post.image);
+  if (!src) return null;
+
+  if (post.type === 'video') {
+    return (
+      <video
+        src={src}
+        className={`${className} rounded-lg object-cover border border-gray-200 bg-black`}
+        controls
+        muted
+      />
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt="Média du post"
+      className={`${className} rounded-lg object-cover border border-gray-200`}
+      loading="lazy"
+    />
+  );
+}
 
 const AdminPosts = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,6 +84,8 @@ const AdminPosts = () => {
           ...p,
           id: `POST${String(p.id).padStart(3, '0')}`,
           authorAvatar: '👤',
+          type: normalizePostType(p.type),
+          status: normalizePostStatus(p.status),
         }))
       );
     } catch (e) {
@@ -58,7 +104,6 @@ const AdminPosts = () => {
   const statusConfig = {
     pending: { label: 'En attente', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
     approved: { label: 'Approuvé', color: 'bg-green-100 text-green-800', icon: CheckCircle },
-    rejected: { label: 'Rejeté', color: 'bg-red-100 text-red-800', icon: XCircle },
     flagged: { label: 'Signalé', color: 'bg-orange-100 text-orange-800', icon: Flag }
   };
 
@@ -83,15 +128,22 @@ const AdminPosts = () => {
   };
 
   const deletePost = async (postId) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce post ?')) {
-      const numericId = parseInt(String(postId).replace('POST', ''), 10);
-      try {
-        await api.delete(`/admin/posts/${numericId}/`);
-        await fetchPosts();
-      } catch (e) {
-        console.error('Erreur delete post:', e);
-        alert("Impossible de supprimer le post.");
-      }
+    if (
+      !window.confirm(
+        'Supprimer cette publication ? L’auteur recevra une notification : le contenu n’a pas été accepté.'
+      )
+    ) {
+      return false;
+    }
+    const numericId = parseInt(String(postId).replace('POST', ''), 10);
+    try {
+      await api.delete(`/admin/posts/${numericId}/`);
+      await fetchPosts();
+      return true;
+    } catch (e) {
+      console.error('Erreur delete post:', e);
+      alert("Impossible de supprimer le post.");
+      return false;
     }
   };
 
@@ -103,9 +155,11 @@ const AdminPosts = () => {
   const exportPosts = () => {
     const csvContent = "data:text/csv;charset=utf-8," + 
       "ID,Auteur,Type,Date,Statut,Likes,Commentaires,Signalements\n" +
-      posts.map(post => 
-        `${post.id},"${post.author}",${typeConfig[post.type].label},${post.date},${statusConfig[post.status].label},${post.likes},${post.comments},${post.reports}`
-      ).join("\n");
+      posts.map(post => {
+        const t = typeConfig[post.type] ?? typeConfig.text;
+        const s = statusConfig[post.status] ?? statusConfig.approved;
+        return `${post.id},"${post.author}",${t.label},${post.date},${s.label},${post.likes},${post.comments},${post.reports}`;
+      }).join("\n");
     
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -145,7 +199,11 @@ const AdminPosts = () => {
           </button>
         </div>
 
-        {loading && <div className="mb-4 text-gray-600">Chargement...</div>}
+        {loading && (
+          <div className="mb-4 flex justify-start">
+            <PageSpinner compact size="md" />
+          </div>
+        )}
 
         {/* Statistiques rapides */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -219,7 +277,6 @@ const AdminPosts = () => {
               <option value="pending">En attente</option>
               <option value="approved">Approuvé</option>
               <option value="flagged">Signalé</option>
-              <option value="rejected">Rejeté</option>
             </select>
           </div>
         </div>
@@ -255,8 +312,10 @@ const AdminPosts = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredPosts.map((post) => {
-                  const StatusIcon = statusConfig[post.status].icon;
-                  const TypeIcon = typeConfig[post.type].icon;
+                  const statusMeta = statusConfig[post.status] ?? statusConfig.approved;
+                  const typeMeta = typeConfig[post.type] ?? typeConfig.text;
+                  const StatusIcon = statusMeta.icon;
+                  const TypeIcon = typeMeta.icon;
                   return (
                     <tr key={post.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -278,7 +337,7 @@ const AdminPosts = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center text-sm text-gray-900">
                           <TypeIcon className="w-4 h-4 mr-2 text-gray-400" />
-                          {typeConfig[post.type].label}
+                          {typeMeta.label}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -288,9 +347,9 @@ const AdminPosts = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig[post.status].color}`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusMeta.color}`}>
                           <StatusIcon className="w-3 h-3 mr-1" />
-                          {statusConfig[post.status].label}
+                          {statusMeta.label}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -328,7 +387,6 @@ const AdminPosts = () => {
                             <option value="pending">En attente</option>
                             <option value="approved">Approuver</option>
                             <option value="flagged">Signaler</option>
-                            <option value="rejected">Rejeter</option>
                           </select>
                           <button
                             onClick={() => deletePost(post.id)}
@@ -349,14 +407,23 @@ const AdminPosts = () => {
 
         {/* Modal détails post */}
         {showModal && selectedPost && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowModal(false)}
+            role="presentation"
+          >
+            <div
+              className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold text-gray-900">Détails du post {selectedPost.id}</h2>
                   <button
+                    type="button"
                     onClick={() => setShowModal(false)}
                     className="text-gray-400 hover:text-gray-600"
+                    aria-label="Fermer"
                   >
                     <XCircle className="w-6 h-6" />
                   </button>
@@ -397,21 +464,15 @@ const AdminPosts = () => {
                 )}
 
                 {/* Média */}
-                {selectedPost.image && (
+                {hasMedia(selectedPost) && (
                   <div>
                     <h4 className="font-medium text-gray-900 mb-2">Média</h4>
-                    <div className="bg-gray-100 rounded-lg p-4 text-center text-gray-500">
-                      {selectedPost.type === 'image' ? (
-                        <div className="flex items-center justify-center">
-                          <ImageIcon className="w-8 h-8 mr-2" />
-                          Image jointe
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center">
-                          <Video className="w-8 h-8 mr-2" />
-                          Vidéo jointe
-                        </div>
-                      )}
+                    <div className="bg-gray-100 rounded-lg p-4">
+                      <div className="mb-2 text-sm text-gray-600 flex items-center gap-2">
+                        {selectedPost.type === 'video' ? <Video className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
+                        {selectedPost.type === 'video' ? 'Vidéo jointe' : 'Image jointe'}
+                      </div>
+                      {renderPostMedia(selectedPost, 'w-full max-h-[420px]')}
                     </div>
                   </div>
                 )}
@@ -438,6 +499,7 @@ const AdminPosts = () => {
                 {/* Actions */}
                 <div className="flex space-x-3 pt-4 border-t border-gray-200">
                   <button
+                    type="button"
                     onClick={() => {
                       updatePostStatus(selectedPost.id, 'approved');
                       setShowModal(false);
@@ -447,20 +509,12 @@ const AdminPosts = () => {
                     Approuver
                   </button>
                   <button
-                    onClick={() => {
-                      updatePostStatus(selectedPost.id, 'rejected');
-                      setShowModal(false);
+                    type="button"
+                    onClick={async () => {
+                      const ok = await deletePost(selectedPost.id);
+                      if (ok) setShowModal(false);
                     }}
                     className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium"
-                  >
-                    Rejeter
-                  </button>
-                  <button
-                    onClick={() => {
-                      deletePost(selectedPost.id);
-                      setShowModal(false);
-                    }}
-                    className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium"
                   >
                     Supprimer
                   </button>

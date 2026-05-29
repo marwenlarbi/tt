@@ -1,7 +1,27 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import VetLayout from './VetLayout';
+import PageSpinner from '../../components/PageSpinner';
 import api from '../../services/api';
 import { Search, Plus, Eye, Edit, Trash2, Download, PawPrint, Calendar } from "lucide-react";
+
+function formatApiError(err, fallback) {
+  const d = err?.response?.data;
+  if (d?.detail != null) {
+    if (typeof d.detail === "string") return d.detail;
+    if (Array.isArray(d.detail)) return d.detail.map(String).join(" ");
+    return String(d.detail);
+  }
+  if (typeof d === "string") return d;
+  const flat = [];
+  if (d && typeof d === "object") {
+    Object.entries(d).forEach(([k, v]) => {
+      if (Array.isArray(v)) flat.push(`${k}: ${v.join(", ")}`);
+      else if (v != null) flat.push(`${k}: ${v}`);
+    });
+  }
+  if (flat.length) return flat.join(" ");
+  return fallback;
+}
 
 const VetConsultations = () => {
   const [consultations, setConsultations] = useState([]);
@@ -18,12 +38,7 @@ const VetConsultations = () => {
   });
   const [availablePets, setAvailablePets] = useState([]);
 
-  useEffect(() => {
-    fetchConsultations();
-    fetchPets();
-  }, [filterStatus]);
-
-  const fetchConsultations = async () => {
+  const fetchConsultations = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -52,16 +67,21 @@ const VetConsultations = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterStatus]);
 
-  const fetchPets = async () => {
+  const fetchPets = useCallback(async () => {
     try {
       const response = await api.get('/vet/patients/');
       setAvailablePets(response.data);
     } catch (error) {
       console.error("Error fetching pets:", error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchConsultations();
+    fetchPets();
+  }, [fetchConsultations, fetchPets]);
 
   // FIX 1 : le filtre côté client est conservé uniquement pour la recherche textuelle.
   // Le filtre par statut est déjà géré côté serveur via fetchConsultations.
@@ -80,7 +100,7 @@ const VetConsultations = () => {
     };
     const labels = {
       in_progress: "En cours",
-      completed: "Clôturée",
+      completed: "Terminée",
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${map[status] || "bg-gray-100 text-gray-800"}`}>
@@ -119,18 +139,21 @@ const VetConsultations = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError("");
+    const payload = {
+      ...formData,
+      pet: formData.pet === "" ? "" : Number(formData.pet),
+    };
     try {
       if (editingC) {
-        await api.patch(`/vet/consultations/${editingC.id}/`, formData);
+        await api.patch(`/vet/consultations/${editingC.id}/`, payload);
       } else {
-        await api.post('/vet/consultations/', formData);
+        await api.post("/vet/consultations/", payload);
       }
       setShowFormModal(false);
       fetchConsultations();
     } catch (error) {
       console.error("Error saving consultation:", error);
-      // FIX 2 : affichage de l'erreur dans le modal au lieu de seulement console.error
-      setFormError("Une erreur est survenue. Veuillez vérifier les champs et réessayer.");
+      setFormError(formatApiError(error, "Une erreur est survenue. Vérifiez les champs et réessayez."));
     }
   };
 
@@ -157,7 +180,7 @@ const VetConsultations = () => {
             <p className="text-gray-600">Gérez vos fiches de consultation médicale</p>
           </div>
           <div className="flex gap-3">
-            <button onClick={() => openForm()} className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium">
+            <button onClick={() => openForm()} className="flex items-center gap-2 bg-[#8657ff] hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium">
               <Plus className="w-4 h-4" /> Nouvelle consultation
             </button>
             <button onClick={exportCSV} className="flex items-center gap-2 bg-[#8657ff] hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium">
@@ -170,7 +193,7 @@ const VetConsultations = () => {
           {[
             { label: "Total", value: consultations.length, color: "text-blue-600" },
             { label: "En cours", value: consultations.filter((c) => c.status === "in_progress").length, color: "text-blue-600" },
-            { label: "Clôturées", value: consultations.filter((c) => c.status === "completed").length, color: "text-gray-600" },
+            { label: "Terminées", value: consultations.filter((c) => c.status === "completed").length, color: "text-gray-600" },
           ].map((s) => (
             <div key={s.label} className="bg-white rounded-lg p-4 shadow-md">
               <p className="text-sm text-gray-600">{s.label}</p>
@@ -191,15 +214,13 @@ const VetConsultations = () => {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8657ff]">
               <option value="all">Tous les statuts</option>
               <option value="in_progress">En cours</option>
-              <option value="completed">Clôturées</option>
+              <option value="completed">Terminées</option>
             </select>
           </div>
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8657ff]"></div>
-          </div>
+          <PageSpinner />
         ) : (
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
             <div className="overflow-x-auto">
@@ -245,9 +266,23 @@ const VetConsultations = () => {
 
         {/* FIX 4 : suppression du `}` parasite après le bloc Diagnostic */}
         {showModal && selectedC && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
-              <button onClick={() => setShowModal(false)} className="absolute top-3 right-3 text-gray-500 hover:text-gray-700">✕</button>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowModal(false)}
+            role="presentation"
+          >
+            <div
+              className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="absolute top-3 right-3 text-xl leading-none text-gray-500 hover:text-gray-700"
+                aria-label="Fermer"
+              >
+                ×
+              </button>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold">Fiche de Consultation</h2>
                 {statusBadge(selectedC.status)}
@@ -290,9 +325,23 @@ const VetConsultations = () => {
         )}
 
         {showFormModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
-              <button onClick={() => setShowFormModal(false)} className="absolute top-3 right-3 text-gray-500 hover:text-gray-700">✕</button>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowFormModal(false)}
+            role="presentation"
+          >
+            <div
+              className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setShowFormModal(false)}
+                className="absolute top-3 right-3 text-xl leading-none text-gray-500 hover:text-gray-700"
+                aria-label="Fermer"
+              >
+                ×
+              </button>
               <h3 className="text-xl font-semibold mb-4">{editingC ? "Modifier" : "Nouvelle"} Consultation</h3>
               {/* FIX 2 : message d'erreur visible dans le modal */}
               {formError && (
@@ -323,14 +372,11 @@ const VetConsultations = () => {
                 <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#8657ff]">
                   <option value="in_progress">En cours</option>
-                  <option value="completed">Clôturée</option>
+                  <option value="completed">Terminée</option>
                 </select>
-                <div className="flex gap-3 pt-2">
-                  <button type="submit" className="flex-1 bg-[#8657ff] hover:bg-purple-700 text-white py-2 rounded font-medium">
+                <div className="pt-2">
+                  <button type="submit" className="w-full bg-[#8657ff] hover:bg-purple-700 text-white py-2 rounded font-medium">
                     {editingC ? "Modifier" : "Créer"}
-                  </button>
-                  <button type="button" onClick={() => setShowFormModal(false)} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 rounded font-medium">
-                    Annuler
                   </button>
                 </div>
               </form>

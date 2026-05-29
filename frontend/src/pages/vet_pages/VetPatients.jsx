@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import VetLayout from './VetLayout';
+import PageSpinner from '../../components/PageSpinner';
 import api, { mediaUrl } from '../../services/api';
-import { Search, Eye, Edit, Trash2, PawPrint, Phone, Download, Calendar } from "lucide-react";
+import { Search, Eye, PawPrint, Download, Calendar } from "lucide-react";
 
 const VetPatients = () => {
   const [patients, setPatients] = useState([]);
@@ -47,10 +48,21 @@ const VetPatients = () => {
     }
   };
 
+  const norm = (v) => (v == null ? "" : String(v)).trim().toLowerCase();
   const filtered = patients.filter((p) => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.owner.toLowerCase().includes(search.toLowerCase());
-    const matchSpecies = filterSpecies === "all" || p.species === filterSpecies;
+    const q = search.trim();
+    const terms = q ? q.split(/\s+/).map((t) => norm(t)).filter(Boolean) : [];
+    const matchSearch =
+      terms.length === 0 ||
+      terms.every(
+        (term) =>
+          norm(p.name).includes(term) ||
+          norm(p.owner).includes(term) ||
+          norm(p.species).includes(term) ||
+          norm(p.breed).includes(term)
+      );
+    const matchSpecies =
+      filterSpecies === "all" || norm(p.species) === norm(filterSpecies);
     const matchStatus = filterStatus === "all" || p.status === filterStatus;
     return matchSearch && matchSpecies && matchStatus;
   });
@@ -61,17 +73,6 @@ const VetPatients = () => {
   };
 
   const speciesEmoji = { Chien: "🐶", Chat: "🐱", Lapin: "🐰", Oiseau: "🐦", Reptile: "🦎", Autre: "🐾" };
-
-  const handleDelete = async (id) => {
-    if (window.confirm("Supprimer ce patient ?")) {
-      try {
-        await api.delete(`/vet/patients/${id}/`);
-        setPatients((prev) => prev.filter((p) => p.id !== id));
-      } catch (error) {
-        console.error("Error deleting patient:", error);
-      }
-    }
-  };
 
   const exportCSV = () => {
     const rows = filtered.map((p) => `${p.name},${p.species},${p.age},${p.owner},${p.status}`);
@@ -113,7 +114,7 @@ const VetPatients = () => {
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <input type="text" placeholder="Rechercher nom, propriétaire..."
+              <input type="text" placeholder="Rechercher nom, propriétaire, espèce…"
                 value={search} onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8657ff]" />
             </div>
@@ -133,9 +134,7 @@ const VetPatients = () => {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8657ff]"></div>
-          </div>
+          <PageSpinner />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((p) => (
@@ -182,11 +181,35 @@ const VetPatients = () => {
         {filtered.length === 0 && !loading && <div className="text-center py-12 text-gray-500">Aucun patient trouvé.</div>}
 
         {showModal && selectedPatient && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
-              <button onClick={() => setShowModal(false)} className="absolute top-3 right-3 text-gray-500 hover:text-gray-700">✕</button>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowModal(false)}
+            role="presentation"
+          >
+            <div
+              className="bg-white rounded-lg w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="absolute top-3 right-3 text-xl leading-none text-gray-500 hover:text-gray-700"
+                aria-label="Fermer"
+              >
+                ×
+              </button>
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-3xl">{speciesEmoji[selectedPatient.species]}</div>
+                {selectedPatient.photo ? (
+                  <img
+                    src={mediaUrl(selectedPatient.photo)}
+                    alt={selectedPatient.name}
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-3xl">
+                    {speciesEmoji[selectedPatient.species] || "🐾"}
+                  </div>
+                )}
                 <div>
                   <h2 className="text-2xl font-bold">{selectedPatient.name}</h2>
                   <p className="text-gray-500">{selectedPatient.species}</p>

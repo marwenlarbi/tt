@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 
 import { useLocation, useNavigate } from 'react-router-dom';
 import Layout from '../../components/Layout';
+import PageSpinner from '../../components/PageSpinner';
 import FollowButton from '../../components/FollowButton';
 import FeedCommentThread from '../../components/feed/FeedCommentThread';
 import { addReplyToTree, countCommentsInTree } from '../../components/feed/commentUtils';
@@ -27,10 +28,10 @@ import {
   Stethoscope,
   ShoppingBag,
   LogIn,
-  Loader2,
   Pencil,
   Trash2,
   Users,
+  Lightbulb,
 } from 'lucide-react';
 
 function initialsAvatarUrl(displayName) {
@@ -173,6 +174,7 @@ const LeftSidebar = ({ sidebarSearch, onSidebarSearchChange, me, isLoggedIn }) =
       <nav className="mb-4 flex flex-col gap-1" aria-label="Navigation principale">
         <SidebarItem icon={<PawPrint className="h-6 w-6 text-primary" />} text="Mes animaux" onClick={() => navigate('/pets')} />
         <SidebarItem icon={<Stethoscope className="h-6 w-6 text-primary" />} text="Vétérinaires" onClick={() => navigate('/vet')} />
+        <SidebarItem icon={<Lightbulb className="h-6 w-6 text-primary" />} text="Conseils véto" onClick={() => navigate('/vet-advice')} />
         <SidebarItem icon={<Users className="h-6 w-6 text-primary" />} text="Ami(e)s" onClick={() => navigate('/friends')} />
         <SidebarItem icon={<Bookmark className="h-6 w-6 text-primary" />} text="Enregistrements" onClick={() => navigate('/bookmarks')} />
         <SidebarItem icon={<ShoppingBag className="h-6 w-6 text-primary" />} text="Boutique" onClick={() => navigate('/product')} />
@@ -432,6 +434,24 @@ const PostCard = ({
     }
   };
 
+  const handleReportPost = async () => {
+    if (!post?.id || blocked) return;
+    const reasonInput = window.prompt('Raison du signalement (optionnel) :');
+    const reason = (reasonInput || '').trim() || 'Contenu inapproprié';
+    const description = window.prompt('Description (optionnelle) :') || '';
+    try {
+      await api.post(`/posts/${post.id}/report/`, {
+        reason,
+        description: description.trim(),
+        priority: 'medium',
+      });
+      alert('Signalement envoyé.');
+    } catch (err) {
+      const msg = err?.response?.data?.detail || "Impossible d'envoyer le signalement.";
+      alert(msg);
+    }
+  };
+
   return (
     <div
       id={fromApi && post.id != null ? `post-${post.id}` : undefined}
@@ -539,7 +559,10 @@ const PostCard = ({
                 <button
                   type="button"
                   className="block w-full px-4 py-2 text-left text-sm text-gray-500 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-gray-700"
-                  onClick={() => setShowOptions(false)}
+                  onClick={() => {
+                    setShowOptions(false);
+                    void handleReportPost();
+                  }}
                 >
                   Rapport
                 </button>
@@ -810,11 +833,16 @@ function SharePostModal({
   if (!open || !post) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
       <div
         className="relative w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-600 dark:bg-dark-card"
         role="dialog"
         aria-labelledby="share-post-title"
+        onClick={(e) => e.stopPropagation()}
       >
         <button
           type="button"
@@ -839,7 +867,7 @@ function SharePostModal({
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-dark-accent dark:text-dark-text dark:hover:bg-gray-700"
           >
             {saveBusy ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <PageSpinner compact size="xs" />
             ) : (
               <Bookmark className={`h-4 w-4 ${saved ? 'fill-primary text-primary' : ''}`} />
             )}
@@ -852,7 +880,7 @@ function SharePostModal({
             onClick={() => onShareToProfile(post)}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-white hover:bg-primary-dark disabled:opacity-50"
           >
-            {profileBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+            {profileBusy ? <PageSpinner compact size="xs" borderTone="onDark" /> : <Share2 className="h-4 w-4" />}
             Publier sur mon profil
           </button>
 
@@ -872,7 +900,7 @@ function SharePostModal({
               <p className="text-sm text-gray-500 dark:text-gray-400">Connectez-vous pour envoyer un message.</p>
             ) : loadingUsers ? (
               <div className="flex justify-center py-6">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <PageSpinner compact size="md" />
               </div>
             ) : users.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">Aucun autre utilisateur pour le moment.</p>
@@ -1488,7 +1516,7 @@ const Home = () => {
         />
         <div className="flex-1 container mx-auto px-4 py-6 overflow-y-auto h-screen scrollbar-thin scrollbar-thumb-custom-purple scrollbar-track-custom-light-track dark:scrollbar-track-custom-dark-track scrollbar-rounded">
           <nav
-            className="mb-4 flex items-center justify-between gap-1 rounded-xl border border-gray-200 bg-gray-50 px-1 py-2 dark:border-gray-600 dark:bg-dark-card lg:hidden"
+            className="mb-4 flex flex-wrap items-center justify-center gap-1 rounded-xl border border-gray-200 bg-gray-50 px-1 py-2 dark:border-gray-600 dark:bg-dark-card lg:hidden"
             aria-label="Navigation rapide"
           >
             <button
@@ -1531,6 +1559,14 @@ const Home = () => {
               <Stethoscope className="h-5 w-5 shrink-0 text-primary" />
               Vétos
             </button>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg p-2 text-[11px] text-gray-700 dark:text-dark-text"
+              onClick={() => navigate('/vet-advice')}
+            >
+              <Lightbulb className="h-5 w-5 shrink-0 text-primary" />
+              Conseils
+            </button>
           </nav>
 
           {!feedLoading && !isLoggedIn && (
@@ -1566,9 +1602,7 @@ const Home = () => {
             </button>
           </div>
           <div className="max-w-2xl mx-auto">
-            {feedLoading && (
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">Chargement du fil…</p>
-            )}
+            {feedLoading && <PageSpinner />}
             {feedError && !feedLoading && (
               <p className="text-center text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-4 py-3 mb-4">
                 {feedError}
@@ -1619,8 +1653,18 @@ const Home = () => {
         
         {/* Modal de nouvelle publication */}
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-dark-accent p-6 rounded-lg shadow-lg w-full max-w-md relative max-h-[90vh] overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => {
+              setShowModal(false);
+              resetNewPost();
+            }}
+            role="presentation"
+          >
+            <div
+              className="bg-white dark:bg-dark-accent p-6 rounded-lg shadow-lg w-full max-w-md relative max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -1628,6 +1672,7 @@ const Home = () => {
                   resetNewPost();
                 }}
                 className="absolute top-3 right-3 text-gray-500 dark:text-dark-text hover:text-gray-800"
+                aria-label="Fermer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1774,8 +1819,19 @@ const Home = () => {
         )}
 
         {editPost && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-            <div className="relative w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-600 dark:bg-dark-card">
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+            onClick={() => {
+              setEditPost(null);
+              setEditPhrase('');
+              setEditError(null);
+            }}
+            role="presentation"
+          >
+            <div
+              className="relative w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-600 dark:bg-dark-card"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -1804,24 +1860,13 @@ const Home = () => {
                   placeholder="Texte de la publication…"
                 />
                 {editError && <p className="text-sm text-red-600 dark:text-red-400">{editError}</p>}
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditPost(null);
-                      setEditPhrase('');
-                      setEditError(null);
-                    }}
-                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-dark-text dark:hover:bg-gray-700"
-                  >
-                    Annuler
-                  </button>
+                <div className="flex justify-end">
                   <button
                     type="submit"
                     disabled={editBusy}
                     className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark disabled:opacity-60"
                   >
-                    {editBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {editBusy ? <PageSpinner compact size="xs" borderTone="onDark" /> : null}
                     Enregistrer
                   </button>
                 </div>

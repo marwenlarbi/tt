@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import VetLayout from './VetLayout';
+import PageSpinner from '../../components/PageSpinner';
 import api from '../../services/api';
 import {
   Search, Plus, Eye, Edit, Trash2, CheckCircle, XCircle,
-  Calendar, User, Phone, Mail, PawPrint, Download
+  Calendar, User, PawPrint, Download
 } from "lucide-react";
 
 const VetAppointments = () => {
@@ -22,12 +23,7 @@ const VetAppointments = () => {
   });
   const [availablePets, setAvailablePets] = useState([]);
 
-  useEffect(() => {
-    fetchAppointments();
-    fetchPets();
-  }, [filterStatus]);
-
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -55,16 +51,21 @@ const VetAppointments = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterStatus]);
 
-  const fetchPets = async () => {
+  const fetchPets = useCallback(async () => {
     try {
       const response = await api.get('/vet/patients/');
       setAvailablePets(response.data);
     } catch (error) {
       console.error("Error fetching pets:", error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchAppointments();
+    fetchPets();
+  }, [fetchAppointments, fetchPets]);
 
   const filtered = appointments.filter((a) => {
     const matchSearch = a.owner.toLowerCase().includes(search.toLowerCase()) ||
@@ -160,7 +161,7 @@ const VetAppointments = () => {
             <p className="text-gray-600">Gérez vos consultations et planifiez vos rendez-vous</p>
           </div>
           <div className="flex gap-3">
-            <button onClick={() => openForm()} className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium">
+            <button onClick={() => openForm()} className="flex items-center gap-2 bg-[#8657ff] hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium">
               <Plus className="w-4 h-4" /> Nouveau RDV
             </button>
             <button onClick={exportCSV} className="flex items-center gap-2 bg-[#8657ff] hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium">
@@ -215,9 +216,7 @@ const VetAppointments = () => {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8657ff]"></div>
-          </div>
+          <PageSpinner />
         ) : (
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
             <div className="overflow-x-auto">
@@ -279,9 +278,20 @@ const VetAppointments = () => {
         )}
 
         {showModal && selectedAppt && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-full max-w-lg p-6 relative">
-              <button onClick={() => setShowModal(false)} className="absolute top-3 right-3 text-gray-500 hover:text-gray-700">✕</button>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowModal(false)}
+            role="presentation"
+          >
+            <div className="bg-white rounded-lg w-full max-w-lg p-6 relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="absolute top-3 right-3 text-xl leading-none text-gray-500 hover:text-gray-700"
+                aria-label="Fermer"
+              >
+                ×
+              </button>
               <h3 className="text-xl font-semibold mb-4">Détail du Rendez-vous</h3>
               <div className="space-y-3">
                 <div className="flex gap-2"><Calendar className="w-4 h-4 text-gray-500 mt-0.5" /><span><strong>Date :</strong> {new Date(selectedAppt.date).toLocaleDateString("fr-FR")} à {selectedAppt.time}</span></div>
@@ -302,9 +312,23 @@ const VetAppointments = () => {
         )}
 
         {showFormModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
-              <button onClick={() => setShowFormModal(false)} className="absolute top-3 right-3 text-gray-500 hover:text-gray-700">✕</button>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowFormModal(false)}
+            role="presentation"
+          >
+            <div
+              className="bg-white rounded-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setShowFormModal(false)}
+                className="absolute top-3 right-3 text-xl leading-none text-gray-500 hover:text-gray-700"
+                aria-label="Fermer"
+              >
+                ×
+              </button>
               <h3 className="text-xl font-semibold mb-4">{editingAppt ? "Modifier" : "Nouveau"} Rendez-vous</h3>
               <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
                 <select value={formData.pet} onChange={(e) => setFormData({ ...formData, pet: e.target.value })} required
@@ -329,11 +353,10 @@ const VetAppointments = () => {
                   <option value="completed">Terminé</option>
                   <option value="cancelled">Annulé</option>
                 </select>
-                <div className="col-span-2 flex gap-3 pt-2">
-                  <button type="submit" className="flex-1 bg-[#8657ff] hover:bg-purple-700 text-white py-2 rounded font-medium">
+                <div className="col-span-2 pt-2">
+                  <button type="submit" className="w-full bg-[#8657ff] hover:bg-purple-700 text-white py-2 rounded font-medium">
                     {editingAppt ? "Modifier" : "Ajouter"}
                   </button>
-                  <button type="button" onClick={() => setShowFormModal(false)} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 rounded font-medium">Annuler</button>
                 </div>
               </form>
             </div>
